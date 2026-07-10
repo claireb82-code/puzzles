@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Daily Logic — Skyline</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap');
+
+:root{
+  --bg: #1B1E23;
+  --panel: #22262D;
+  --line: #363B44;
+  --line-soft: #2B2F37;
+  --ink: #F0EDE6;
+  --ink-muted: #8B8F98;
+  --amber: #E8A33D;
+  --amber-dim: #6b5228;
+  --yellow: #E8D34A;
+  --teal: #5FB3B3;
+  --error: #E0636B;
+}
+
+*{box-sizing:border-box;}
+
+body{
+  margin:0;
+  background:
+    linear-gradient(var(--line-soft) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, var(--line-soft) 1px, transparent 1px) 0 0 / 24px 24px,
+    var(--bg);
+  color:var(--ink);
+  font-family:'IBM Plex Sans', sans-serif;
+  min-height:100vh;
+  padding:28px 16px 60px;
+}
+
+.wrap{
+  max-width:760px;
+  margin:0 auto;
+}
+
+.eyebrow{
+  font-family:'IBM Plex Mono', monospace;
+  font-size:11px;
+  letter-spacing:0.14em;
+  color:var(--teal);
+  text-transform:uppercase;
+  margin-bottom:6px;
+}
+
+h1{
+  font-family:'Space Grotesk', sans-serif;
+  font-weight:700;
+  font-size:32px;
+  margin:0 0 4px;
+  letter-spacing:-0.01em;
+}
+
+.sub{
+  color:var(--ink-muted);
+  font-size:14px;
+  margin:0 0 22px;
+  line-height:1.5;
+}
+
+.bar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:22px;
+  flex-wrap:wrap;
+}
+
+.right-controls{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  font-family:'IBM Plex Mono', monospace;
+  font-size:13px;
+  color:var(--ink-muted);
+}
+
+#timer{color:var(--ink); font-weight:600;}
+
+.reset-btn{
+  background:transparent;
+  border:1px solid var(--line);
+  color:var(--ink-muted);
+  border-radius:8px;
+  padding:8px 12px;
+  font-family:'IBM Plex Mono', monospace;
+  font-size:12px;
+  cursor:pointer;
+  transition:border-color .15s, color .15s;
+}
+.reset-btn:hover{ border-color:var(--amber); color:var(--amber); }
+
+.board-panel{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:22px;
+  overflow-x:auto;
+}
+
+.skygrid{
+  display:grid;
+  grid-template-columns: 40px repeat(5, 46px) 40px;
+  grid-template-rows: 40px repeat(5, 46px) 40px;
+  width:max-content;
+}
+
+.clue{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-family:'IBM Plex Mono', monospace;
+  font-size:15px;
+  font-weight:600;
+  color:var(--amber);
+}
+.clue.empty{ color:transparent; }
+
+.cell{
+  border:1px solid var(--line-soft);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  font-family:'Space Grotesk', sans-serif;
+  font-size:20px;
+  font-weight:700;
+  color:var(--ink);
+  position:relative;
+  user-select:none;
+  transition:background .1s, border-color .1s;
+}
+.cell.selected{
+  border-color:var(--teal);
+  background:rgba(95,179,179,0.10);
+}
+.cell.conflict{
+  color:var(--error);
+}
+.cell.conflict::after{
+  content:'';
+  position:absolute;
+  inset:3px;
+  border:1px solid var(--error);
+  border-radius:3px;
+  pointer-events:none;
+}
+
+@keyframes hint-pulse{
+  from{ box-shadow:0 0 0 3px var(--pulse-color) inset, 0 0 4px var(--pulse-color); }
+  to{ box-shadow:0 0 0 3px var(--pulse-color) inset, 0 0 16px var(--pulse-color); }
+}
+.cell.hint-good{ --pulse-color: var(--yellow); animation: hint-pulse 0.9s ease-in-out infinite alternate; }
+.cell.hint-bad{ --pulse-color: var(--error); animation: hint-pulse 0.9s ease-in-out infinite alternate; }
+
+.keypad{
+  margin-top:18px;
+  display:flex;
+  gap:8px;
+}
+.keypad button{
+  width:44px;
+  height:44px;
+  border-radius:8px;
+  border:1px solid var(--line);
+  background:transparent;
+  color:var(--ink);
+  font-family:'Space Grotesk', sans-serif;
+  font-size:17px;
+  font-weight:700;
+  cursor:pointer;
+  transition:border-color .15s, color .15s, background .15s;
+}
+.keypad button:hover{ border-color:var(--amber); color:var(--amber); }
+.keypad button.clear{
+  font-family:'IBM Plex Mono', monospace;
+  font-size:12px;
+  font-weight:500;
+  color:var(--ink-muted);
+  width:auto;
+  padding:0 14px;
+}
+
+.hint-msg{
+  margin-top:14px;
+  font-family:'IBM Plex Mono', monospace;
+  font-size:12px;
+  color:var(--ink-muted);
+  min-height:16px;
+  opacity:0;
+  transition:opacity .25s;
+}
+.hint-msg.show{ opacity:1; }
+.hint-msg.bad{ color:var(--error); }
+.hint-msg.good{ color:var(--yellow); }
+
+.win-banner{
+  margin-top:20px;
+  padding:16px 18px;
+  border-radius:10px;
+  background:rgba(95,179,179,0.12);
+  border:1px solid var(--teal);
+  color:var(--teal);
+  font-family:'IBM Plex Mono', monospace;
+  font-size:13px;
+  display:none;
+  align-items:center;
+  gap:10px;
+}
+.win-banner.show{ display:flex; }
+
+.rules-panel{
+  margin-top:22px;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:22px;
+}
+.rules-panel h2{
+  font-family:'Space Grotesk', sans-serif;
+  font-size:16px;
+  margin:0 0 12px;
+}
+.rules-panel p{
+  margin:0 0 10px;
+  color:var(--ink);
+  font-size:14px;
+  line-height:1.7;
+}
+.rules-panel p:last-child{ margin-bottom:0; }
+
+.footer-note{
+  margin-top:32px;
+  padding-top:18px;
+  border-top:1px solid var(--line);
+  font-size:12px;
+  color:var(--ink-muted);
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.footer-note b{ color:var(--ink); font-weight:500; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Daily Logic · Rotation 3 of 3 — Number Logic (medium-hard)</div>
+  <h1>Skyline</h1>
+  <p class="sub">Fill the 5×5 grid so every row and column has each height 1–5 exactly once. The numbers around the edge tell you how many buildings are visible from that direction — a taller building hides any shorter ones behind it.</p>
+
+  <div class="bar">
+    <div class="right-controls">
+      <span>Time <span id="timer">00:00</span></span>
+      <button class="reset-btn" id="hintBtn">Hint</button>
+      <button class="reset-btn" id="resetBtn">Reset</button>
+    </div>
+  </div>
+
+  <div class="board-panel">
+    <div class="skygrid" id="skygrid"></div>
+    <div class="keypad" id="keypad"></div>
+  </div>
+
+  <div class="hint-msg" id="hintMsg"></div>
+
+  <div class="win-banner" id="winBanner">✓ Solved — nice deduction. Come back tomorrow for the nonogram.</div>
+
+  <div class="rules-panel">
+    <h2>How to read the clues</h2>
+    <p>Each cell holds a building height from 1 (shortest) to 5 (tallest). No height repeats within a row or column.</p>
+    <p>A clue number is how many buildings you'd see looking down that row or column from that side — you can see a building only if every building before it (from your viewpoint) is shorter.</p>
+    <p>Click a cell to select it, then type 1–5 (or use the keypad). Backspace/Delete or the ✕ button clears a cell. A red outline means that value conflicts with another cell in its row or column.</p>
+  </div>
+
+  <div class="footer-note">
+    <span><b>Yesterday:</b> word logic</span>
+    <span><b>Today:</b> number logic</span>
+    <span><b>Tomorrow:</b> nonogram</span>
+  </div>
+</div>
+
+<script>
+const N = 5;
+
+const solution = [
+  [4, 3, 5, 1, 2],
+  [1, 4, 2, 5, 3],
+  [3, 5, 4, 2, 1],
+  [5, 2, 1, 3, 4],
+  [2, 1, 3, 4, 5],
+];
+
+// null = no clue given for that row/column
+const clueTop    = [null, null, null, 2, 4];
+const clueBottom = [null, null, 3, null, null];
+const clueLeft   = [null, null, null, 1, 4];
+const clueRight  = [2, null, 4, null, null];
+
+// ── State ────────────────────────────────────────────────────────────────
+const grid = Array.from({length:N}, () => Array(N).fill(0)); // 0 = empty
+let selected = null; // {r,c}
+let startTime = null;
+let timerInterval = null;
+let solved = false;
+
+const cellRefs = [];
+
+// ── Build grid ───────────────────────────────────────────────────────────
+const skygrid = document.getElementById('skygrid');
+
+function place(el, col, row){
+  el.style.gridColumn = col;
+  el.style.gridRow = row;
+}
+
+function clueEl(value){
+  const el = document.createElement('div');
+  el.className = 'clue' + (value === null ? ' empty' : '');
+  el.textContent = value === null ? '·' : value;
+  return el;
+}
+
+// corners
+[[1,1],[7,1],[1,7],[7,7]].forEach(([c,r]) => {
+  const el = document.createElement('div');
+  place(el, c, r);
+  skygrid.appendChild(el);
+});
+
+// top / bottom clues (columns)
+for(let c = 0; c < N; c++){
+  const t = clueEl(clueTop[c]);
+  place(t, c + 2, 1);
+  skygrid.appendChild(t);
+
+  const b = clueEl(clueBottom[c]);
+  place(b, c + 2, 7);
+  skygrid.appendChild(b);
+}
+
+// left / right clues (rows)
+for(let r = 0; r < N; r++){
+  const l = clueEl(clueLeft[r]);
+  place(l, 1, r + 2);
+  skygrid.appendChild(l);
+
+  const rr = clueEl(clueRight[r]);
+  place(rr, 7, r + 2);
+  skygrid.appendChild(rr);
+}
+
+// interior cells
+for(let r = 0; r < N; r++){
+  cellRefs.push([]);
+  for(let c = 0; c < N; c++){
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    place(cell, c + 2, r + 2);
+    cell.addEventListener('click', () => selectCell(r, c));
+    skygrid.appendChild(cell);
+    cellRefs[r].push(cell);
+  }
+}
+
+// ── Keypad ───────────────────────────────────────────────────────────────
+const keypad = document.getElementById('keypad');
+for(let v = 1; v <= N; v++){
+  const btn = document.createElement('button');
+  btn.textContent = v;
+  btn.addEventListener('click', () => setValue(v));
+  keypad.appendChild(btn);
+}
+const clearBtn = document.createElement('button');
+clearBtn.className = 'clear';
+clearBtn.textContent = '✕ clear';
+clearBtn.addEventListener('click', () => setValue(0));
+keypad.appendChild(clearBtn);
+
+// ── Interaction ──────────────────────────────────────────────────────────
+function selectCell(r, c){
+  if(solved) return;
+  clearHintHighlight();
+  selected = { r, c };
+  render();
+}
+
+function setValue(v){
+  if(solved || !selected) return;
+  clearHintHighlight();
+  if(startTime === null) startTimer();
+  grid[selected.r][selected.c] = v;
+  render();
+  checkWin();
+}
+
+document.addEventListener('keydown', (e) => {
+  if(solved || !selected) return;
+  if(e.key >= '1' && e.key <= String(N)){
+    setValue(Number(e.key));
+  } else if(e.key === 'Backspace' || e.key === 'Delete' || e.key === '0'){
+    setValue(0);
+  } else if(e.key === 'ArrowUp' && selected.r > 0){
+    selected.r--; clearHintHighlight(); render();
+  } else if(e.key === 'ArrowDown' && selected.r < N-1){
+    selected.r++; clearHintHighlight(); render();
+  } else if(e.key === 'ArrowLeft' && selected.c > 0){
+    selected.c--; clearHintHighlight(); render();
+  } else if(e.key === 'ArrowRight' && selected.c < N-1){
+    selected.c++; clearHintHighlight(); render();
+  }
+});
+
+function hasConflict(r, c){
+  const v = grid[r][c];
+  if(v === 0) return false;
+  for(let cc = 0; cc < N; cc++) if(cc !== c && grid[r][cc] === v) return true;
+  for(let rr = 0; rr < N; rr++) if(rr !== r && grid[rr][c] === v) return true;
+  return false;
+}
+
+function render(){
+  for(let r = 0; r < N; r++){
+    for(let c = 0; c < N; c++){
+      const cell = cellRefs[r][c];
+      const v = grid[r][c];
+      cell.textContent = v === 0 ? '' : v;
+      cell.classList.toggle('selected', !!selected && selected.r === r && selected.c === c);
+      cell.classList.toggle('conflict', hasConflict(r, c));
+    }
+  }
+}
+
+function checkWin(){
+  for(let r = 0; r < N; r++){
+    for(let c = 0; c < N; c++){
+      if(grid[r][c] !== solution[r][c]) return;
+    }
+  }
+  solved = true;
+  clearInterval(timerInterval);
+  document.getElementById('winBanner').classList.add('show');
+}
+
+function startTimer(){
+  startTime = Date.now();
+  timerInterval = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - startTime)/1000);
+    const m = String(Math.floor(elapsed/60)).padStart(2,'0');
+    const s = String(elapsed%60).padStart(2,'0');
+    document.getElementById('timer').textContent = `${m}:${s}`;
+  }, 1000);
+}
+
+// ── Hint / mistake ───────────────────────────────────────────────────────
+let hintTimeout = null;
+
+function clearHintHighlight(){
+  cellRefs.flat().forEach(el => el.classList.remove('hint-good', 'hint-bad'));
+  if(hintTimeout) clearTimeout(hintTimeout);
+}
+
+function showHint(r, c, cellClass, msgClass, text){
+  cellRefs[r][c].classList.add(cellClass);
+  flashHintMsg(text, msgClass);
+  hintTimeout = setTimeout(() => {
+    cellRefs[r][c].classList.remove(cellClass);
+  }, 4000);
+}
+
+function flashHintMsg(text, cls){
+  const el = document.getElementById('hintMsg');
+  el.textContent = text;
+  el.className = 'hint-msg show' + (cls ? ' ' + cls : '');
+  setTimeout(() => { el.classList.remove('show'); }, 4000);
+}
+
+function findMistake(){
+  for(let r = 0; r < N; r++){
+    for(let c = 0; c < N; c++){
+      if(grid[r][c] !== 0 && grid[r][c] !== solution[r][c]) return { r, c };
+    }
+  }
+  return null;
+}
+
+function findNextMove(){
+  for(let r = 0; r < N; r++){
+    for(let c = 0; c < N; c++){
+      if(grid[r][c] !== solution[r][c]) return { r, c };
+    }
+  }
+  return null;
+}
+
+document.getElementById('hintBtn').addEventListener('click', () => {
+  if(solved) return;
+  clearHintHighlight();
+
+  const mistake = findMistake();
+  if(mistake){
+    showHint(mistake.r, mistake.c, 'hint-bad', 'bad',
+      'That number doesn’t belong there — recheck the clues for this row and column.');
+    return;
+  }
+
+  const move = findNextMove();
+  if(move){
+    showHint(move.r, move.c, 'hint-good', 'good', 'Try this cell next.');
+  } else {
+    flashHintMsg('Nothing left to hint — you’ve got it.', '');
+  }
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  clearHintHighlight();
+  document.getElementById('hintMsg').classList.remove('show');
+  for(let r = 0; r < N; r++) for(let c = 0; c < N; c++) grid[r][c] = 0;
+  selected = null;
+  solved = false;
+  startTime = null;
+  clearInterval(timerInterval);
+  document.getElementById('timer').textContent = '00:00';
+  document.getElementById('winBanner').classList.remove('show');
+  render();
+});
+
+render();
+</script>
+</body>
+</html>
