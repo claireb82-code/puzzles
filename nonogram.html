@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Daily Logic — Nonogram</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap');
+
+:root{
+  --bg: #1B1E23;
+  --panel: #22262D;
+  --line: #363B44;
+  --line-soft: #2B2F37;
+  --ink: #F0EDE6;
+  --ink-muted: #8B8F98;
+  --amber: #E8A33D;
+  --amber-dim: #6b5228;
+  --yellow: #E8D34A;
+  --teal: #5FB3B3;
+  --error: #E0636B;
+}
+
+*{box-sizing:border-box;}
+
+body{
+  margin:0;
+  background:
+    linear-gradient(var(--line-soft) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, var(--line-soft) 1px, transparent 1px) 0 0 / 24px 24px,
+    var(--bg);
+  color:var(--ink);
+  font-family:'IBM Plex Sans', sans-serif;
+  min-height:100vh;
+  padding:28px 16px 60px;
+}
+
+.wrap{
+  max-width:760px;
+  margin:0 auto;
+}
+
+.eyebrow{
+  font-family:'IBM Plex Mono', monospace;
+  font-size:11px;
+  letter-spacing:0.14em;
+  color:var(--teal);
+  text-transform:uppercase;
+  margin-bottom:6px;
+}
+
+h1{
+  font-family:'Space Grotesk', sans-serif;
+  font-weight:700;
+  font-size:32px;
+  margin:0 0 4px;
+  letter-spacing:-0.01em;
+}
+
+.sub{
+  color:var(--ink-muted);
+  font-size:14px;
+  margin:0 0 22px;
+  line-height:1.5;
+}
+
+.bar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:22px;
+  flex-wrap:wrap;
+}
+
+.mode-toggle{
+  display:flex;
+  border:1px solid var(--line);
+  border-radius:8px;
+  overflow:hidden;
+}
+
+.mode-toggle button{
+  font-family:'IBM Plex Mono', monospace;
+  font-size:12px;
+  padding:8px 14px;
+  background:transparent;
+  color:var(--ink-muted);
+  border:none;
+  cursor:pointer;
+  transition:background .15s, color .15s;
+}
+
+.mode-toggle button.active{
+  background:var(--amber);
+  color:#1B1E23;
+  font-weight:600;
+}
+
+.right-controls{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  font-family:'IBM Plex Mono', monospace;
+  font-size:13px;
+  color:var(--ink-muted);
+}
+
+#timer{color:var(--ink); font-weight:600;}
+
+.reset-btn{
+  background:transparent;
+  border:1px solid var(--line);
+  color:var(--ink-muted);
+  border-radius:8px;
+  padding:8px 12px;
+  font-family:'IBM Plex Mono', monospace;
+  font-size:12px;
+  cursor:pointer;
+  transition:border-color .15s, color .15s;
+}
+.reset-btn:hover{ border-color:var(--amber); color:var(--amber); }
+
+.board-panel{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:22px;
+  overflow-x:auto;
+}
+
+.grid-outer{
+  display:inline-grid;
+  grid-template-columns:auto 1fr;
+  grid-template-rows:auto 1fr;
+}
+
+.corner{}
+
+.col-clues{
+  display:grid;
+  grid-auto-flow:column;
+}
+
+.col-clue{
+  width:34px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-end;
+  font-family:'IBM Plex Mono', monospace;
+  font-size:12px;
+  color:var(--ink-muted);
+  padding-bottom:6px;
+  line-height:1.3;
+  transition:color .2s, opacity .2s;
+}
+
+.col-clue.done{ color:var(--teal); opacity:0.85; }
+.col-clue .num.yellow{ color:var(--yellow); }
+
+.row-clues{
+  display:grid;
+  grid-auto-flow:row;
+}
+
+.row-clue{
+  height:34px;
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:6px;
+  padding-right:10px;
+  font-family:'IBM Plex Mono', monospace;
+  font-size:12px;
+  color:var(--ink-muted);
+  transition:color .2s, opacity .2s;
+  white-space:nowrap;
+}
+
+.row-clue.done{ color:var(--teal); opacity:0.85; }
+.row-clue .num.yellow{ color:var(--yellow); }
+
+.cells{
+  display:grid;
+  user-select:none;
+  -webkit-user-select:none;
+  touch-action:none;
+}
+
+.cell{
+  width:34px;
+  height:34px;
+  border:1px solid var(--line);
+  background:transparent;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  position:relative;
+  transition:background .1s;
+}
+
+.cell:nth-child(5n){ border-right:1px solid var(--amber-dim); }
+
+.cell.filled{
+  background:var(--amber);
+}
+
+.cell.marked::before,
+.cell.marked::after{
+  content:'';
+  position:absolute;
+  width:60%;
+  height:2px;
+  background:var(--ink-muted);
+}
+.cell.marked::before{ transform:rotate(45deg); }
+.cell.marked::after{ transform:rotate(-45deg); }
+
+.row-block-border{ border-bottom:1px solid var(--amber-dim); }
+
+.hint-msg{
+  margin-top:14px;
+  font-family:'IBM Plex Mono', monospace;
+  font-size:12px;
+  color:var(--ink-muted);
+  min-height:16px;
+  opacity:0;
+  transition:opacity .25s;
+}
+.hint-msg.show{ opacity:1; }
+.hint-msg.bad{ color:var(--error); }
+.hint-msg.good{ color:var(--yellow); }
+
+@keyframes hint-pulse{
+  from{ box-shadow:0 0 0 3px var(--pulse-color) inset, 0 0 4px var(--pulse-color); }
+  to{ box-shadow:0 0 0 3px var(--pulse-color) inset, 0 0 16px var(--pulse-color); }
+}
+
+.cell.hint-good{
+  --pulse-color: var(--yellow);
+  animation: hint-pulse 0.9s ease-in-out infinite alternate;
+}
+.cell.hint-bad{
+  --pulse-color: var(--error);
+  animation: hint-pulse 0.9s ease-in-out infinite alternate;
+}
+
+.win-banner{
+  margin-top:20px;
+  padding:16px 18px;
+  border-radius:10px;
+  background:rgba(95,179,179,0.12);
+  border:1px solid var(--teal);
+  color:var(--teal);
+  font-family:'IBM Plex Mono', monospace;
+  font-size:13px;
+  display:none;
+  align-items:center;
+  gap:10px;
+}
+.win-banner.show{ display:flex; }
+
+.hint{
+  margin-top:16px;
+  font-size:12px;
+  color:var(--ink-muted);
+  line-height:1.6;
+}
+
+.footer-note{
+  margin-top:32px;
+  padding-top:18px;
+  border-top:1px solid var(--line);
+  font-size:12px;
+  color:var(--ink-muted);
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+}
+
+.footer-note b{ color:var(--ink); font-weight:500; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Daily Logic · Rotation 1 of 3 — Nonogram (hard)</div>
+  <h1>Picture Logic</h1>
+  <p class="sub">15×15, three separate elements in one scene. No line solves by simple counting alone — expect to cross-reference rows and columns. Click and drag to fill a run in one stroke, right-click (or Mark mode) to cross out.</p>
+
+  <div class="bar">
+    <div class="mode-toggle">
+      <button id="modeFill" class="active">✎ Fill</button>
+      <button id="modeMark">✕ Mark</button>
+    </div>
+    <div class="right-controls">
+      <span>Time <span id="timer">00:00</span></span>
+      <button class="reset-btn" id="hintBtn">Hint</button>
+      <button class="reset-btn" id="resetBtn">Reset</button>
+    </div>
+  </div>
+
+  <div class="board-panel">
+    <div class="grid-outer" id="gridOuter"></div>
+  </div>
+
+  <div class="hint-msg" id="hintMsg"></div>
+
+  <div class="win-banner" id="winBanner">✓ Solved — nice deduction. Come back tomorrow for the word logic puzzle.</div>
+
+  <div class="footer-note">
+    <span><b>Tomorrow:</b> word logic</span>
+    <span><b>Day after:</b> number logic</span>
+    <span><b>Then:</b> back to nonogram</span>
+  </div>
+</div>
+
+<script>
+const solution = [
+  "001000000100000",
+  "000001000001000",
+  "000000000011100",
+  "010000000011110",
+  "000000000011110",
+  "000000000001100",
+  "000010000000010",
+  "011000110001100",
+  "111101111011110",
+  "111110111101111",
+  "111111111111111",
+  "111111111111111",
+  "111111111111111",
+  "111111111111111",
+  "101010101010101"
+].map(r => r.split('').map(Number));
+
+const ROWS = solution.length;
+const COLS = solution[0].length;
+
+function runsOf(arr){
+  const runs = [];
+  let count = 0;
+  for(const v of arr){
+    if(v === 1){ count++; }
+    else{ if(count>0) runs.push(count); count = 0; }
+  }
+  if(count>0) runs.push(count);
+  return runs.length ? runs : [0];
+}
+
+const rowClues = solution.map(r => runsOf(r));
+const colClues = [];
+for(let c=0;c<COLS;c++){
+  const col = [];
+  for(let r=0;r<ROWS;r++) col.push(solution[r][c]);
+  colClues.push(runsOf(col));
+}
+
+// state: 0 empty, 1 filled, 2 marked
+const state = Array.from({length:ROWS}, () => Array(COLS).fill(0));
+let mode = 'fill';
+let startTime = null;
+let timerInterval = null;
+let solved = false;
+
+const gridOuter = document.getElementById('gridOuter');
+
+const corner = document.createElement('div');
+corner.className = 'corner';
+gridOuter.appendChild(corner);
+
+const colCluesEl = document.createElement('div');
+colCluesEl.className = 'col-clues';
+colCluesEl.style.gridTemplateColumns = `repeat(${COLS}, 34px)`;
+colClues.forEach(clue => {
+  const div = document.createElement('div');
+  div.className = 'col-clue';
+  div.innerHTML = clue.map((n,i) => `<span class="num" data-i="${i}">${n}</span>`).join('<br>');
+  colCluesEl.appendChild(div);
+});
+gridOuter.appendChild(colCluesEl);
+
+const rowCluesEl = document.createElement('div');
+rowCluesEl.className = 'row-clues';
+rowClues.forEach(clue => {
+  const div = document.createElement('div');
+  div.className = 'row-clue';
+  div.innerHTML = clue.map((n,i) => `<span class="num" data-i="${i}">${n}</span>`).join(' ');
+  rowCluesEl.appendChild(div);
+});
+gridOuter.appendChild(rowCluesEl);
+
+const cellsEl = document.createElement('div');
+cellsEl.className = 'cells';
+cellsEl.style.gridTemplateColumns = `repeat(${COLS}, 34px)`;
+cellsEl.style.gridTemplateRows = `repeat(${ROWS}, 34px)`;
+
+const cellRefs = [];
+for(let r=0;r<ROWS;r++){
+  cellRefs.push([]);
+  for(let c=0;c<COLS;c++){
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.dataset.r = r;
+    cell.dataset.c = c;
+    if((r+1) % 5 === 0 && r !== ROWS-1) cell.classList.add('row-block-border');
+    cell.addEventListener('mousedown', (e) => {
+      if(e.button !== 0) return;
+      e.preventDefault();
+      beginStroke(r,c,false);
+    });
+    cell.addEventListener('mouseenter', () => { if(isDragging) applyStroke(r,c); });
+    cell.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      if(!isDragging) beginStroke(r,c,true);
+    });
+    cell.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      beginStroke(r,c,false);
+    }, {passive:false});
+    cellsEl.appendChild(cell);
+    cellRefs[r].push(cell);
+  }
+}
+gridOuter.appendChild(cellsEl);
+
+cellsEl.addEventListener('touchmove', (e) => {
+  if(!isDragging) return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  const el = document.elementFromPoint(touch.clientX, touch.clientY);
+  if(el && el.classList.contains('cell')){
+    applyStroke(Number(el.dataset.r), Number(el.dataset.c));
+  }
+}, {passive:false});
+
+document.addEventListener('mouseup', () => { isDragging = false; strokeValue = null; });
+document.addEventListener('touchend', () => { isDragging = false; strokeValue = null; });
+
+let isDragging = false;
+let strokeValue = null; // the value being painted across the drag
+
+function beginStroke(r,c,forceMark){
+  if(solved) return;
+  clearHintHighlight();
+  if(startTime === null) startTimer();
+  const useMark = forceMark || mode === 'mark';
+  const current = state[r][c];
+  const newValue = useMark
+    ? (current === 2 ? 0 : 2)
+    : (current === 1 ? 0 : 1);
+  strokeValue = newValue;
+  isDragging = true;
+  state[r][c] = newValue;
+  render();
+  checkWin();
+}
+
+function applyStroke(r,c){
+  if(solved || strokeValue === null) return;
+  if(state[r][c] === strokeValue) return;
+  state[r][c] = strokeValue;
+  render();
+  checkWin();
+}
+
+function render(){
+  const rowFullMatch = [];
+  const colFullMatch = [];
+
+  for(let r=0;r<ROWS;r++){
+    const filledRuns = runsOf(state[r].map(v => v===1?1:0));
+    rowFullMatch[r] = JSON.stringify(filledRuns) === JSON.stringify(rowClues[r]);
+  }
+  for(let c=0;c<COLS;c++){
+    const col = [];
+    for(let r=0;r<ROWS;r++) col.push(state[r][c]===1?1:0);
+    const filledRuns = runsOf(col);
+    colFullMatch[c] = JSON.stringify(filledRuns) === JSON.stringify(colClues[c]);
+  }
+
+  for(let r=0;r<ROWS;r++){
+    if(!rowFullMatch[r]) continue;
+    for(let c=0;c<COLS;c++){
+      if(state[r][c] === 0) state[r][c] = 2;
+    }
+  }
+  for(let c=0;c<COLS;c++){
+    if(!colFullMatch[c]) continue;
+    for(let r=0;r<ROWS;r++){
+      if(state[r][c] === 0) state[r][c] = 2;
+    }
+  }
+
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      const cell = cellRefs[r][c];
+      cell.classList.toggle('filled', state[r][c] === 1);
+      cell.classList.toggle('marked', state[r][c] === 2);
+    }
+  }
+  for(let r=0;r<ROWS;r++){
+    const filledRuns = runsOf(state[r].map(v => v===1?1:0));
+    const fullMatch = rowFullMatch[r];
+    const rowEl = rowCluesEl.children[r];
+    rowEl.classList.toggle('done', fullMatch);
+    const spans = rowEl.querySelectorAll('.num');
+    spans.forEach((span, i) => {
+      const numMatches = !fullMatch && i < filledRuns.length && filledRuns[i] === rowClues[r][i];
+      span.classList.toggle('yellow', numMatches);
+    });
+  }
+  for(let c=0;c<COLS;c++){
+    const col = [];
+    for(let r=0;r<ROWS;r++) col.push(state[r][c]===1?1:0);
+    const filledRuns = runsOf(col);
+    const fullMatch = colFullMatch[c];
+    const colEl = colCluesEl.children[c];
+    colEl.classList.toggle('done', fullMatch);
+    const spans = colEl.querySelectorAll('.num');
+    spans.forEach((span, i) => {
+      const numMatches = !fullMatch && i < filledRuns.length && filledRuns[i] === colClues[c][i];
+      span.classList.toggle('yellow', numMatches);
+    });
+  }
+}
+
+function checkWin(){
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      const isFilled = state[r][c] === 1 ? 1 : 0;
+      if(isFilled !== solution[r][c]) return;
+    }
+  }
+  solved = true;
+  clearInterval(timerInterval);
+  document.getElementById('winBanner').classList.add('show');
+}
+
+function startTimer(){
+  startTime = Date.now();
+  timerInterval = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - startTime)/1000);
+    const m = String(Math.floor(elapsed/60)).padStart(2,'0');
+    const s = String(elapsed%60).padStart(2,'0');
+    document.getElementById('timer').textContent = `${m}:${s}`;
+  }, 1000);
+}
+
+document.getElementById('modeFill').addEventListener('click', () => {
+  mode = 'fill';
+  document.getElementById('modeFill').classList.add('active');
+  document.getElementById('modeMark').classList.remove('active');
+});
+document.getElementById('modeMark').addEventListener('click', () => {
+  mode = 'mark';
+  document.getElementById('modeMark').classList.add('active');
+  document.getElementById('modeFill').classList.remove('active');
+});
+document.getElementById('hintBtn').addEventListener('click', () => {
+  if(solved) return;
+  clearHintHighlight();
+
+  const mistake = findMistake();
+  if(mistake){
+    showHint(mistake.r, mistake.c, 'hint-bad', 'bad',
+      mistake.type === 'wrong-fill'
+        ? 'That square is filled but shouldn\u2019t be \u2014 recheck this row and column.'
+        : 'That square is crossed out but should be filled \u2014 recheck this row and column.');
+    return;
+  }
+
+  const move = findNextMove();
+  if(move){
+    showHint(move.r, move.c, 'hint-good', 'good', 'Try this square next.');
+  } else {
+    flashHintMsg('Nothing left to hint \u2014 you\u2019ve got it.', '');
+  }
+});
+
+let hintTimeout = null;
+
+function clearHintHighlight(){
+  document.querySelectorAll('.cell.hint-good, .cell.hint-bad').forEach(el => {
+    el.classList.remove('hint-good', 'hint-bad');
+  });
+  if(hintTimeout) clearTimeout(hintTimeout);
+}
+
+function showHint(r, c, cellClass, msgClass, text){
+  cellRefs[r][c].classList.add(cellClass);
+  flashHintMsg(text, msgClass);
+  hintTimeout = setTimeout(() => {
+    cellRefs[r][c].classList.remove(cellClass);
+  }, 4000);
+}
+
+function flashHintMsg(text, cls){
+  const el = document.getElementById('hintMsg');
+  el.textContent = text;
+  el.className = 'hint-msg show' + (cls ? ' ' + cls : '');
+  setTimeout(() => { el.classList.remove('show'); }, 4000);
+}
+
+function findMistake(){
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      if(state[r][c] === 1 && solution[r][c] === 0) return {r,c,type:'wrong-fill'};
+      if(state[r][c] === 2 && solution[r][c] === 1) return {r,c,type:'wrong-mark'};
+    }
+  }
+  return null;
+}
+
+function findNextMove(){
+  let best = null;
+  let bestScore = -1;
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      if(solution[r][c] !== 1 || state[r][c] === 1) continue;
+      let score = 0;
+      for(let cc=0;cc<COLS;cc++) if(state[r][cc] === 1 && solution[r][cc] === 1) score++;
+      for(let rr=0;rr<ROWS;rr++) if(state[rr][c] === 1 && solution[rr][c] === 1) score++;
+      if(score > bestScore){ bestScore = score; best = {r,c}; }
+    }
+  }
+  return best;
+}
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  clearHintHighlight();
+  document.getElementById('hintMsg').classList.remove('show');
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) state[r][c] = 0;
+  solved = false;
+  startTime = null;
+  clearInterval(timerInterval);
+  document.getElementById('timer').textContent = '00:00';
+  document.getElementById('winBanner').classList.remove('show');
+  render();
+});
+
+render();
+</script>
+</body>
+</html>
