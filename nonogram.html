@@ -376,19 +376,22 @@ function genGrid(rng, size, nBlobs){
   for(let i = 0; i < nBlobs; i++){
     const rowLo = Math.floor(i * rowBand);
     const rowHi = Math.min(size, Math.floor((i + 1) * rowBand) + 2);
-    const bh = Math.min(rowHi - rowLo, randInt(rng, 4, 8));
+    const bh = Math.min(rowHi - rowLo, randInt(rng, 3, 6));
     const by = randInt(rng, rowLo, Math.max(rowLo, rowHi - bh));
 
     const j = colOrder[i];
     const colLo = Math.floor(j * colBand);
     const colHi = Math.min(size, Math.floor((j + 1) * colBand) + 3);
-    const bw = Math.min(colHi - colLo, randInt(rng, 5, 9));
+    const bw = Math.min(colHi - colLo, randInt(rng, 3, 6));
     const bx = randInt(rng, colLo, Math.max(colLo, colHi - bw));
 
-    const nRects = randInt(rng, 2, 4);
+    // several small, independently-placed rects per blob (rather than one
+    // solid block) so lines tend to end up with multiple runs, not one —
+    // that's what forces cross-referencing instead of simple counting.
+    const nRects = randInt(rng, 3, 5);
     for(let k = 0; k < nRects; k++){
-      const rw = randInt(rng, 2, bw);
-      const rh = randInt(rng, 2, bh);
+      const rw = randInt(rng, 1, bw);
+      const rh = randInt(rng, 1, bh);
       const rx = bx + randInt(rng, 0, bw - rw);
       const ry = by + randInt(rng, 0, bh - rh);
       for(let y = ry; y < ry + rh; y++){
@@ -471,10 +474,13 @@ function propagate(size, rowClues, colClues){
       }
     }
   }
-  return { solved: state.every(row => row.every(v => v !== 0)) };
+  return { solved: state.every(row => row.every(v => v !== 0)), iterations };
 }
 
-function generateNonogram(seedStr, size, nBlobs, maxAttempts){
+// Rejects any grid with a fully-blank row/column (free auto-solved lines
+// feel like a cheat), and requires enough propagation passes that no line
+// solves from its own clue alone — i.e. real cross-referencing is needed.
+function generateNonogram(seedStr, size, nBlobs, maxAttempts, minIterations){
   const rng = makeRng(seedStr);
   for(let attempt = 0; attempt < maxAttempts; attempt++){
     const grid = genGrid(rng, size, nBlobs);
@@ -485,12 +491,15 @@ function generateNonogram(seedStr, size, nBlobs, maxAttempts){
       for(let r = 0; r < size; r++) col.push(grid[r][c]);
       colClues.push(runsOf(col));
     }
-    if(propagate(size, rowClues, colClues).solved) return grid;
+    if(rowClues.some(rc => rc.length === 1 && rc[0] === 0)) continue;
+    if(colClues.some(cc => cc.length === 1 && cc[0] === 0)) continue;
+    const result = propagate(size, rowClues, colClues);
+    if(result.solved && result.iterations >= minIterations) return grid;
   }
   return genGrid(rng, size, nBlobs); // exceedingly unlikely fallback
 }
 
-const solution = generateNonogram('nonogram-' + todayISO(), 15, 3, 40);
+const solution = generateNonogram('nonogram-' + todayISO(), 15, 5, 200, 4);
 
 const ROWS = solution.length;
 const COLS = solution[0].length;
