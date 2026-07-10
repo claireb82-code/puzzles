@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Daily Logic</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap');
+
+:root{
+  --bg: #1B1E23;
+  --panel: #22262D;
+  --line: #363B44;
+  --line-soft: #2B2F37;
+  --ink: #F0EDE6;
+  --ink-muted: #8B8F98;
+  --amber: #E8A33D;
+  --amber-dim: #6b5228;
+  --yellow: #E8D34A;
+  --teal: #5FB3B3;
+  --error: #E0636B;
+}
+
+*{box-sizing:border-box;}
+
+body{
+  margin:0;
+  background:
+    linear-gradient(var(--line-soft) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, var(--line-soft) 1px, transparent 1px) 0 0 / 24px 24px,
+    var(--bg);
+  color:var(--ink);
+  font-family:'IBM Plex Sans', sans-serif;
+  min-height:100vh;
+  padding:28px 16px 60px;
+}
+
+.wrap{
+  max-width:760px;
+  margin:0 auto;
+}
+
+.eyebrow{
+  font-family:'IBM Plex Mono', monospace;
+  font-size:11px;
+  letter-spacing:0.14em;
+  color:var(--teal);
+  text-transform:uppercase;
+  margin-bottom:6px;
+}
+
+h1{
+  font-family:'Space Grotesk', sans-serif;
+  font-weight:700;
+  font-size:32px;
+  margin:0 0 4px;
+  letter-spacing:-0.01em;
+}
+
+.sub{
+  color:var(--ink-muted);
+  font-size:14px;
+  margin:0 0 28px;
+  line-height:1.5;
+}
+
+.featured{
+  display:block;
+  background:var(--panel);
+  border:1px solid var(--amber-dim);
+  border-radius:14px;
+  padding:26px;
+  text-decoration:none;
+  color:inherit;
+  position:relative;
+  overflow:hidden;
+  transition:border-color .15s, transform .15s;
+}
+.featured:hover{ border-color:var(--amber); transform:translateY(-1px); }
+.featured::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  background:radial-gradient(600px 160px at 90% -20%, rgba(232,163,61,0.10), transparent);
+  pointer-events:none;
+}
+.featured .badge{
+  font-family:'IBM Plex Mono', monospace;
+  font-size:11px;
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+  color:var(--amber);
+  margin-bottom:10px;
+}
+.featured .name{
+  font-family:'Space Grotesk', sans-serif;
+  font-weight:700;
+  font-size:26px;
+  margin-bottom:6px;
+}
+.featured .desc{
+  color:var(--ink-muted);
+  font-size:14px;
+  line-height:1.6;
+  max-width:520px;
+}
+.featured .cta{
+  margin-top:18px;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  font-family:'IBM Plex Mono', monospace;
+  font-size:13px;
+  color:var(--teal);
+}
+
+.section-label{
+  font-family:'IBM Plex Mono', monospace;
+  font-size:11px;
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+  color:var(--ink-muted);
+  margin:32px 0 12px;
+}
+
+.grid3{
+  display:grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap:12px;
+}
+@media (max-width: 620px){
+  .grid3{ grid-template-columns: 1fr; }
+}
+
+.card{
+  display:block;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:18px;
+  text-decoration:none;
+  color:inherit;
+  transition:border-color .15s, transform .15s;
+  position:relative;
+}
+.card:hover{ border-color:var(--teal); transform:translateY(-1px); }
+.card.today{ border-color:var(--amber-dim); }
+.card .today-tag{
+  position:absolute;
+  top:14px;
+  right:14px;
+  font-family:'IBM Plex Mono', monospace;
+  font-size:10px;
+  letter-spacing:0.1em;
+  color:var(--amber);
+  text-transform:uppercase;
+}
+.card .type{
+  font-family:'IBM Plex Mono', monospace;
+  font-size:11px;
+  color:var(--teal);
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+  margin-bottom:8px;
+}
+.card .cname{
+  font-family:'Space Grotesk', sans-serif;
+  font-weight:700;
+  font-size:18px;
+  margin-bottom:6px;
+}
+.card .cdesc{
+  color:var(--ink-muted);
+  font-size:12.5px;
+  line-height:1.5;
+}
+
+.footer-note{
+  margin-top:36px;
+  padding-top:18px;
+  border-top:1px solid var(--line);
+  font-size:12px;
+  color:var(--ink-muted);
+  line-height:1.6;
+}
+.footer-note b{ color:var(--ink); font-weight:500; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Daily Logic</div>
+  <h1>A new puzzle every day</h1>
+  <p class="sub">Three self-contained logic puzzles that rotate day to day — nonogram, word logic, sudoku, repeat. Each one is freshly generated from today's date, so it's the same puzzle for everyone today and a different one tomorrow.</p>
+
+  <a class="featured" id="featuredLink" href="#">
+    <div class="badge" id="featuredBadge">Today's puzzle</div>
+    <div class="name" id="featuredName">—</div>
+    <div class="desc" id="featuredDesc">—</div>
+    <div class="cta">Play today's puzzle →</div>
+  </a>
+
+  <div class="section-label">All puzzles</div>
+  <div class="grid3" id="cardGrid"></div>
+
+  <div class="footer-note">
+    <b>How it works:</b> today's date seeds a deterministic generator for whichever puzzle type is up in the rotation, so the puzzle is different every time that type comes around — no two Mondays are the same nonogram. Open any file directly to play a puzzle out of rotation any time.
+  </div>
+</div>
+
+<script>
+const ROTATION = [
+  {
+    file: 'nonogram.html',
+    type: 'Nonogram',
+    name: 'Picture Logic',
+    desc: '15×15 grid-fill puzzle. Clues on the edges tell you how many cells to fill in each row and column.',
+  },
+  {
+    file: 'wordlogic.html',
+    type: 'Word Logic',
+    name: 'Desk Neighbors',
+    desc: 'A logic-grid deduction puzzle: match people to pets to drinks using a staircase elimination grid.',
+  },
+  {
+    file: 'numberlogic.html',
+    type: 'Sudoku',
+    name: 'Nine',
+    desc: 'Classic 9×9 sudoku. Fill every row, column, and box with 1–9, no repeats.',
+  },
+];
+
+function todayISO(){ return new Date().toISOString().slice(0, 10); }
+function daysSinceEpoch(dateStr){
+  return Math.floor(new Date(dateStr + 'T00:00:00Z').getTime() / 86400000);
+}
+function todaysIndex(){
+  const n = daysSinceEpoch(todayISO());
+  return ((n % ROTATION.length) + ROTATION.length) % ROTATION.length;
+}
+
+const idx = todaysIndex();
+const today = ROTATION[idx];
+
+document.getElementById('featuredLink').href = today.file;
+document.getElementById('featuredBadge').textContent = `Today's puzzle · ${today.type}`;
+document.getElementById('featuredName').textContent = today.name;
+document.getElementById('featuredDesc').textContent = today.desc;
+
+const grid = document.getElementById('cardGrid');
+ROTATION.forEach((p, i) => {
+  const a = document.createElement('a');
+  a.className = 'card' + (i === idx ? ' today' : '');
+  a.href = p.file;
+  a.innerHTML = `
+    ${i === idx ? '<div class="today-tag">Today</div>' : ''}
+    <div class="type">${p.type}</div>
+    <div class="cname">${p.name}</div>
+    <div class="cdesc">${p.desc}</div>
+  `;
+  grid.appendChild(a);
+});
+</script>
+</body>
+</html>

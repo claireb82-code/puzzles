@@ -286,30 +286,116 @@ h1{
 <script>
 const N = 9;
 
-const solution = [
-  [5, 8, 2, 7, 9, 6, 4, 3, 1],
-  [7, 9, 6, 1, 3, 4, 2, 8, 5],
-  [1, 3, 4, 5, 8, 2, 6, 9, 7],
-  [9, 4, 7, 3, 2, 1, 5, 6, 8],
-  [8, 6, 5, 9, 4, 7, 1, 2, 3],
-  [3, 2, 1, 8, 6, 5, 7, 4, 9],
-  [4, 1, 9, 2, 5, 3, 8, 7, 6],
-  [2, 5, 3, 6, 7, 8, 9, 1, 4],
-  [6, 7, 8, 4, 1, 9, 3, 5, 2],
-];
+// ── Seeded RNG (same puzzle for everyone on a given date, new one each day) ─
+function xmur3(str){
+  let h = 1779033703 ^ str.length;
+  for(let i = 0; i < str.length; i++){
+    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  return function(){
+    h = Math.imul(h ^ (h >>> 16), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    h ^= h >>> 16;
+    return h >>> 0;
+  };
+}
+function mulberry32(a){
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function makeRng(seedStr){ return mulberry32(xmur3(seedStr)()); }
+function todayISO(){ return new Date().toISOString().slice(0, 10); }
+function shuffle(rng, arr){
+  const a = arr.slice();
+  for(let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(rng() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
-// 0 = blank to fill in; given puzzle has 34 clues, uniqueness verified by backtracking solver
-const givens = [
-  [5, 8, 0, 0, 9, 0, 0, 3, 0],
-  [7, 0, 6, 1, 0, 0, 2, 0, 0],
-  [0, 3, 4, 5, 0, 0, 0, 0, 7],
-  [0, 0, 0, 0, 2, 0, 5, 0, 0],
-  [0, 0, 0, 9, 4, 0, 1, 0, 0],
-  [3, 2, 0, 0, 0, 5, 7, 4, 0],
-  [0, 1, 9, 0, 0, 0, 8, 7, 6],
-  [0, 0, 0, 6, 0, 0, 0, 1, 4],
-  [0, 7, 0, 4, 0, 9, 0, 5, 0],
-];
+// ── Sudoku generation ────────────────────────────────────────────────────
+function pattern(r, c, base){
+  const side = base * base;
+  return (base * (r % base) + Math.floor(r / base) + c) % side;
+}
+function makeSudokuSolution(rng, base = 3){
+  const side = base * base;
+  const rb = Array.from({length: base}, (_, i) => i);
+  const rows = [];
+  for(const g of shuffle(rng, rb)){
+    for(const r of shuffle(rng, rb)) rows.push(g * base + r);
+  }
+  const cols = [];
+  for(const g of shuffle(rng, rb)){
+    for(const c of shuffle(rng, rb)) cols.push(g * base + c);
+  }
+  const nums = shuffle(rng, Array.from({length: side}, (_, i) => i + 1));
+  return rows.map(r => cols.map(c => nums[pattern(r, c, base)]));
+}
+function countSudokuSolutions(grid, limit){
+  const n = 9;
+  const g = grid.map(row => row.slice());
+  let count = 0;
+  function findEmpty(){
+    for(let r = 0; r < n; r++) for(let c = 0; c < n; c++) if(g[r][c] === 0) return [r, c];
+    return null;
+  }
+  function valid(r, c, v){
+    for(let i = 0; i < n; i++) if(g[r][i] === v || g[i][c] === v) return false;
+    const br = 3 * Math.floor(r / 3), bc = 3 * Math.floor(c / 3);
+    for(let rr = br; rr < br + 3; rr++) for(let cc = bc; cc < bc + 3; cc++) if(g[rr][cc] === v) return false;
+    return true;
+  }
+  function backtrack(){
+    if(count >= limit) return;
+    const pos = findEmpty();
+    if(!pos){ count++; return; }
+    const [r, c] = pos;
+    for(let v = 1; v <= 9; v++){
+      if(valid(r, c, v)){
+        g[r][c] = v;
+        backtrack();
+        g[r][c] = 0;
+        if(count >= limit) return;
+      }
+    }
+  }
+  backtrack();
+  return count;
+}
+function makeSudokuPuzzle(rng, solution, targetGivens, minPerLine){
+  const n = 9;
+  const puzzle = solution.map(row => row.slice());
+  let cells = [];
+  for(let r = 0; r < n; r++) for(let c = 0; c < n; c++) cells.push([r, c]);
+  cells = shuffle(rng, cells);
+  let givensLeft = 81;
+  const rowCount = (g, r) => g[r].reduce((a, v) => a + (v !== 0 ? 1 : 0), 0);
+  const colCount = (g, c) => g.reduce((a, row) => a + (row[c] !== 0 ? 1 : 0), 0);
+  for(const [r, c] of cells){
+    if(givensLeft <= targetGivens) break;
+    if(rowCount(puzzle, r) <= minPerLine || colCount(puzzle, c) <= minPerLine) continue;
+    const backup = puzzle[r][c];
+    puzzle[r][c] = 0;
+    if(countSudokuSolutions(puzzle, 2) === 1) givensLeft--;
+    else puzzle[r][c] = backup;
+  }
+  return puzzle;
+}
+function generateSudoku(seedStr){
+  const rng = makeRng(seedStr);
+  const solution = makeSudokuSolution(rng);
+  const puzzle = makeSudokuPuzzle(rng, solution, 32, 1);
+  return { solution, givens: puzzle };
+}
+
+const { solution, givens } = generateSudoku('sudoku-' + todayISO());
 
 // ── State ────────────────────────────────────────────────────────────────
 const grid = givens.map(row => row.slice());

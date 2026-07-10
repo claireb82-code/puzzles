@@ -317,26 +317,39 @@ h1{
 </div>
 
 <script>
-const solution = [
-  "001000000100000",
-  "000001000001000",
-  "000000000011100",
-  "010000000011110",
-  "000000000011110",
-  "000000000001100",
-  "000010000000010",
-  "011000110001100",
-  "111101111011110",
-  "111110111101111",
-  "111111111111111",
-  "111111111111111",
-  "111111111111111",
-  "111111111111111",
-  "101010101010101"
-].map(r => r.split('').map(Number));
-
-const ROWS = solution.length;
-const COLS = solution[0].length;
+// ── Seeded RNG (same puzzle for everyone on a given date, new one each day) ─
+function xmur3(str){
+  let h = 1779033703 ^ str.length;
+  for(let i = 0; i < str.length; i++){
+    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  return function(){
+    h = Math.imul(h ^ (h >>> 16), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    h ^= h >>> 16;
+    return h >>> 0;
+  };
+}
+function mulberry32(a){
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function makeRng(seedStr){ return mulberry32(xmur3(seedStr)()); }
+function todayISO(){ return new Date().toISOString().slice(0, 10); }
+function randInt(rng, min, max){ return min + Math.floor(rng() * (max - min + 1)); }
+function shuffle(rng, arr){
+  const a = arr.slice();
+  for(let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(rng() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
 function runsOf(arr){
   const runs = [];
@@ -348,6 +361,139 @@ function runsOf(arr){
   if(count>0) runs.push(count);
   return runs.length ? runs : [0];
 }
+
+// ── Nonogram generation ──────────────────────────────────────────────────
+// Stamps a few overlapping-rectangle "blobs" onto a blank grid, one per
+// diagonal row/column band so the picture spreads across the whole grid
+// instead of clustering in one corner. This tends to produce puzzles
+// solvable by pure line logic (see propagate() below), which also proves
+// the clue set has exactly one valid solution.
+function genGrid(rng, size, nBlobs){
+  const grid = Array.from({length: size}, () => Array(size).fill(0));
+  const rowBand = size / nBlobs;
+  const colBand = size / nBlobs;
+  const colOrder = shuffle(rng, Array.from({length: nBlobs}, (_, i) => i));
+  for(let i = 0; i < nBlobs; i++){
+    const rowLo = Math.floor(i * rowBand);
+    const rowHi = Math.min(size, Math.floor((i + 1) * rowBand) + 2);
+    const bh = Math.min(rowHi - rowLo, randInt(rng, 4, 8));
+    const by = randInt(rng, rowLo, Math.max(rowLo, rowHi - bh));
+
+    const j = colOrder[i];
+    const colLo = Math.floor(j * colBand);
+    const colHi = Math.min(size, Math.floor((j + 1) * colBand) + 3);
+    const bw = Math.min(colHi - colLo, randInt(rng, 5, 9));
+    const bx = randInt(rng, colLo, Math.max(colLo, colHi - bw));
+
+    const nRects = randInt(rng, 2, 4);
+    for(let k = 0; k < nRects; k++){
+      const rw = randInt(rng, 2, bw);
+      const rh = randInt(rng, 2, bh);
+      const rx = bx + randInt(rng, 0, bw - rw);
+      const ry = by + randInt(rng, 0, bh - rh);
+      for(let y = ry; y < ry + rh; y++){
+        for(let x = rx; x < rx + rw; x++) grid[y][x] = 1;
+      }
+    }
+  }
+  return grid;
+}
+
+function linePossiblePlacements(length, clue, known){
+  if(clue.length === 1 && clue[0] === 0){
+    if(known.some(k => k === 1)) return [];
+    return [Array(length).fill(2)];
+  }
+  const nRuns = clue.length;
+  const results = [];
+  function place(runIdx, pos, current){
+    if(runIdx === nRuns){
+      const filled = current.concat(Array(length - pos).fill(2));
+      for(let i = 0; i < length; i++){
+        if(known[i] === 1 && filled[i] !== 1) return;
+        if(known[i] === 2 && filled[i] !== 2) return;
+      }
+      results.push(filled);
+      return;
+    }
+    const runLen = clue[runIdx];
+    const remainingRuns = clue.slice(runIdx + 1);
+    const remainingMin = remainingRuns.reduce((a, b) => a + b, 0) + remainingRuns.length;
+    const maxStartExclusive = length - (runLen + remainingMin) + 1;
+    for(let start = pos; start < maxStartExclusive; start++){
+      const candidate = current.concat(Array(start - pos).fill(2)).concat(Array(runLen).fill(1));
+      const newPos = start + runLen;
+      if(runIdx < nRuns - 1){
+        if(newPos < length) place(runIdx + 1, newPos + 1, candidate.concat([2]));
+      } else {
+        place(runIdx + 1, newPos, candidate);
+      }
+    }
+  }
+  place(0, 0, []);
+  return results;
+}
+
+function solveLine(length, clue, known){
+  const placements = linePossiblePlacements(length, clue, known);
+  if(placements.length === 0) return { newKnown: known, ok: false };
+  const newKnown = known.slice();
+  for(let i = 0; i < length; i++){
+    const v0 = placements[0][i];
+    if(placements.every(p => p[i] === v0)) newKnown[i] = v0;
+  }
+  return { newKnown, ok: true };
+}
+
+// Runs row/column constraint propagation to a fixpoint. If every cell ends
+// up determined, that assignment is logically forced — proving both that
+// the puzzle is solvable without guessing and that its solution is unique.
+function propagate(size, rowClues, colClues){
+  let state = Array.from({length: size}, () => Array(size).fill(0));
+  let changed = true;
+  let iterations = 0;
+  while(changed && iterations < 60){
+    changed = false;
+    iterations++;
+    for(let r = 0; r < size; r++){
+      const known = state[r];
+      const { newKnown, ok } = solveLine(size, rowClues[r], known);
+      if(!ok) return { solved: false };
+      if(newKnown.some((v, i) => v !== known[i])){ state[r] = newKnown; changed = true; }
+    }
+    for(let c = 0; c < size; c++){
+      const known = state.map(row => row[c]);
+      const { newKnown, ok } = solveLine(size, colClues[c], known);
+      if(!ok) return { solved: false };
+      if(newKnown.some((v, i) => v !== known[i])){
+        for(let r = 0; r < size; r++) state[r][c] = newKnown[r];
+        changed = true;
+      }
+    }
+  }
+  return { solved: state.every(row => row.every(v => v !== 0)) };
+}
+
+function generateNonogram(seedStr, size, nBlobs, maxAttempts){
+  const rng = makeRng(seedStr);
+  for(let attempt = 0; attempt < maxAttempts; attempt++){
+    const grid = genGrid(rng, size, nBlobs);
+    const rowClues = grid.map(row => runsOf(row));
+    const colClues = [];
+    for(let c = 0; c < size; c++){
+      const col = [];
+      for(let r = 0; r < size; r++) col.push(grid[r][c]);
+      colClues.push(runsOf(col));
+    }
+    if(propagate(size, rowClues, colClues).solved) return grid;
+  }
+  return genGrid(rng, size, nBlobs); // exceedingly unlikely fallback
+}
+
+const solution = generateNonogram('nonogram-' + todayISO(), 15, 3, 40);
+
+const ROWS = solution.length;
+const COLS = solution[0].length;
 
 const rowClues = solution.map(r => runsOf(r));
 const colClues = [];
