@@ -7,7 +7,7 @@ self-contained HTML files (no build step, no dependencies).
 
 1. **Nonogram** — picture logic, clue-driven grid fill
 2. **Word logic** — logic-grid deduction (people/items/attributes, cross-elimination clues)
-3. **Number logic** — Kakuro / Skyscraper-style numeric constraints
+3. **Sudoku** — classic 9×9 number placement
 
 Repeats weekly.
 
@@ -18,10 +18,10 @@ Repeats weekly.
 - `wordlogic.html` — Day 2. "Desk Neighbors": 4 people × pet × drink, staircase elimination
   grid (confirm/eliminate cells, right-click to quick-eliminate), live hint/mistake button.
   Clue set is hand-verified to be uniquely solvable by pure elimination, no guessing.
-- `numberlogic.html` — Day 3. "Skyline": 5×5 Skyscraper puzzle, keyboard/keypad number entry,
-  live row/column conflict highlighting, live hint/mistake button. Solution and clue set were
-  generated with a script and brute-force verified unique against all 161,280 order-5 Latin
-  squares (see `scripts/skyscraper_gen.py`).
+- `numberlogic.html` — Day 3. "Nine": classic 9×9 sudoku, keyboard/keypad number entry, live
+  row/column/box conflict highlighting and peer highlighting, live hint/mistake button.
+  Solution and 34-given puzzle were generated with a script and verified unique via a
+  backtracking solution counter (see `scripts/sudoku_gen.py`).
 
 ## Playing
 

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Daily Logic — Skyline</title>
+<title>Daily Logic — Sudoku</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap');
 
@@ -104,23 +104,13 @@ h1{
   overflow-x:auto;
 }
 
-.skygrid{
+.sudoku{
   display:grid;
-  grid-template-columns: 40px repeat(5, 46px) 40px;
-  grid-template-rows: 40px repeat(5, 46px) 40px;
+  grid-template-columns: repeat(9, 46px);
+  grid-template-rows: repeat(9, 46px);
   width:max-content;
+  border:2px solid var(--amber-dim);
 }
-
-.clue{
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-family:'IBM Plex Mono', monospace;
-  font-size:15px;
-  font-weight:600;
-  color:var(--amber);
-}
-.clue.empty{ color:transparent; }
 
 .cell{
   border:1px solid var(--line-soft);
@@ -129,20 +119,26 @@ h1{
   justify-content:center;
   cursor:pointer;
   font-family:'Space Grotesk', sans-serif;
-  font-size:20px;
+  font-size:19px;
   font-weight:700;
-  color:var(--ink);
+  color:var(--teal);
   position:relative;
   user-select:none;
   transition:background .1s, border-color .1s;
 }
+.cell.given{ color:var(--ink); }
+
+.cell.box-right{ border-right:2px solid var(--amber-dim); }
+.cell.box-bottom{ border-bottom:2px solid var(--amber-dim); }
+
+.cell.peer{ background:rgba(95,179,179,0.06); }
 .cell.selected{
   border-color:var(--teal);
-  background:rgba(95,179,179,0.10);
+  background:rgba(95,179,179,0.14);
 }
-.cell.conflict{
-  color:var(--error);
-}
+.cell.given.selected{ background:rgba(232,163,61,0.12); border-color:var(--amber); }
+
+.cell.conflict{ color:var(--error); }
 .cell.conflict::after{
   content:'';
   position:absolute;
@@ -156,23 +152,24 @@ h1{
   from{ box-shadow:0 0 0 3px var(--pulse-color) inset, 0 0 4px var(--pulse-color); }
   to{ box-shadow:0 0 0 3px var(--pulse-color) inset, 0 0 16px var(--pulse-color); }
 }
-.cell.hint-good{ --pulse-color: var(--yellow); animation: hint-pulse 0.9s ease-in-out infinite alternate; }
-.cell.hint-bad{ --pulse-color: var(--error); animation: hint-pulse 0.9s ease-in-out infinite alternate; }
+.cell.hint-good{ --pulse-color: var(--yellow); animation: hint-pulse 0.9s ease-in-out infinite alternate; z-index:1; }
+.cell.hint-bad{ --pulse-color: var(--error); animation: hint-pulse 0.9s ease-in-out infinite alternate; z-index:1; }
 
 .keypad{
   margin-top:18px;
   display:flex;
   gap:8px;
+  flex-wrap:wrap;
 }
 .keypad button{
-  width:44px;
-  height:44px;
+  width:40px;
+  height:40px;
   border-radius:8px;
   border:1px solid var(--line);
   background:transparent;
   color:var(--ink);
   font-family:'Space Grotesk', sans-serif;
-  font-size:17px;
+  font-size:16px;
   font-weight:700;
   cursor:pointer;
   transition:border-color .15s, color .15s, background .15s;
@@ -251,9 +248,9 @@ h1{
 </head>
 <body>
 <div class="wrap">
-  <div class="eyebrow">Daily Logic · Rotation 3 of 3 — Number Logic (medium-hard)</div>
-  <h1>Skyline</h1>
-  <p class="sub">Fill the 5×5 grid so every row and column has each height 1–5 exactly once. The numbers around the edge tell you how many buildings are visible from that direction — a taller building hides any shorter ones behind it.</p>
+  <div class="eyebrow">Daily Logic · Rotation 3 of 3 — Sudoku (medium)</div>
+  <h1>Nine</h1>
+  <p class="sub">Classic 9×9 sudoku. Fill every row, column, and 3×3 box with 1–9, no repeats. Click a cell and type a digit (or use the keypad) — the row, column, and box light up to help you scan.</p>
 
   <div class="bar">
     <div class="right-controls">
@@ -264,7 +261,7 @@ h1{
   </div>
 
   <div class="board-panel">
-    <div class="skygrid" id="skygrid"></div>
+    <div class="sudoku" id="sudoku"></div>
     <div class="keypad" id="keypad"></div>
   </div>
 
@@ -273,38 +270,49 @@ h1{
   <div class="win-banner" id="winBanner">✓ Solved — nice deduction. Come back tomorrow for the nonogram.</div>
 
   <div class="rules-panel">
-    <h2>How to read the clues</h2>
-    <p>Each cell holds a building height from 1 (shortest) to 5 (tallest). No height repeats within a row or column.</p>
-    <p>A clue number is how many buildings you'd see looking down that row or column from that side — you can see a building only if every building before it (from your viewpoint) is shorter.</p>
-    <p>Click a cell to select it, then type 1–5 (or use the keypad). Backspace/Delete or the ✕ button clears a cell. A red outline means that value conflicts with another cell in its row or column.</p>
+    <h2>Rules</h2>
+    <p>Every row, every column, and every 3×3 box must contain the digits 1 through 9, each exactly once.</p>
+    <p>Bold cells are given and can't be changed. Click any other cell to select it, then type 1–9 (or use the keypad). Backspace/Delete or the ✕ button clears a cell.</p>
+    <p>A red outline means that digit conflicts with another cell in its row, column, or box.</p>
   </div>
 
   <div class="footer-note">
     <span><b>Yesterday:</b> word logic</span>
-    <span><b>Today:</b> number logic</span>
+    <span><b>Today:</b> sudoku</span>
     <span><b>Tomorrow:</b> nonogram</span>
   </div>
 </div>
 
 <script>
-const N = 5;
+const N = 9;
 
 const solution = [
-  [4, 3, 5, 1, 2],
-  [1, 4, 2, 5, 3],
-  [3, 5, 4, 2, 1],
-  [5, 2, 1, 3, 4],
-  [2, 1, 3, 4, 5],
+  [5, 8, 2, 7, 9, 6, 4, 3, 1],
+  [7, 9, 6, 1, 3, 4, 2, 8, 5],
+  [1, 3, 4, 5, 8, 2, 6, 9, 7],
+  [9, 4, 7, 3, 2, 1, 5, 6, 8],
+  [8, 6, 5, 9, 4, 7, 1, 2, 3],
+  [3, 2, 1, 8, 6, 5, 7, 4, 9],
+  [4, 1, 9, 2, 5, 3, 8, 7, 6],
+  [2, 5, 3, 6, 7, 8, 9, 1, 4],
+  [6, 7, 8, 4, 1, 9, 3, 5, 2],
 ];
 
-// null = no clue given for that row/column
-const clueTop    = [null, null, null, 2, 4];
-const clueBottom = [null, null, 3, null, null];
-const clueLeft   = [null, null, null, 1, 4];
-const clueRight  = [2, null, 4, null, null];
+// 0 = blank to fill in; given puzzle has 34 clues, uniqueness verified by backtracking solver
+const givens = [
+  [5, 8, 0, 0, 9, 0, 0, 3, 0],
+  [7, 0, 6, 1, 0, 0, 2, 0, 0],
+  [0, 3, 4, 5, 0, 0, 0, 0, 7],
+  [0, 0, 0, 0, 2, 0, 5, 0, 0],
+  [0, 0, 0, 9, 4, 0, 1, 0, 0],
+  [3, 2, 0, 0, 0, 5, 7, 4, 0],
+  [0, 1, 9, 0, 0, 0, 8, 7, 6],
+  [0, 0, 0, 6, 0, 0, 0, 1, 4],
+  [0, 7, 0, 4, 0, 9, 0, 5, 0],
+];
 
 // ── State ────────────────────────────────────────────────────────────────
-const grid = Array.from({length:N}, () => Array(N).fill(0)); // 0 = empty
+const grid = givens.map(row => row.slice());
 let selected = null; // {r,c}
 let startTime = null;
 let timerInterval = null;
@@ -313,58 +321,18 @@ let solved = false;
 const cellRefs = [];
 
 // ── Build grid ───────────────────────────────────────────────────────────
-const skygrid = document.getElementById('skygrid');
+const sudoku = document.getElementById('sudoku');
 
-function place(el, col, row){
-  el.style.gridColumn = col;
-  el.style.gridRow = row;
-}
-
-function clueEl(value){
-  const el = document.createElement('div');
-  el.className = 'clue' + (value === null ? ' empty' : '');
-  el.textContent = value === null ? '·' : value;
-  return el;
-}
-
-// corners
-[[1,1],[7,1],[1,7],[7,7]].forEach(([c,r]) => {
-  const el = document.createElement('div');
-  place(el, c, r);
-  skygrid.appendChild(el);
-});
-
-// top / bottom clues (columns)
-for(let c = 0; c < N; c++){
-  const t = clueEl(clueTop[c]);
-  place(t, c + 2, 1);
-  skygrid.appendChild(t);
-
-  const b = clueEl(clueBottom[c]);
-  place(b, c + 2, 7);
-  skygrid.appendChild(b);
-}
-
-// left / right clues (rows)
-for(let r = 0; r < N; r++){
-  const l = clueEl(clueLeft[r]);
-  place(l, 1, r + 2);
-  skygrid.appendChild(l);
-
-  const rr = clueEl(clueRight[r]);
-  place(rr, 7, r + 2);
-  skygrid.appendChild(rr);
-}
-
-// interior cells
 for(let r = 0; r < N; r++){
   cellRefs.push([]);
   for(let c = 0; c < N; c++){
     const cell = document.createElement('div');
     cell.className = 'cell';
-    place(cell, c + 2, r + 2);
+    if((c + 1) % 3 === 0 && c !== N - 1) cell.classList.add('box-right');
+    if((r + 1) % 3 === 0 && r !== N - 1) cell.classList.add('box-bottom');
+    if(givens[r][c] !== 0) cell.classList.add('given');
     cell.addEventListener('click', () => selectCell(r, c));
-    skygrid.appendChild(cell);
+    sudoku.appendChild(cell);
     cellRefs[r].push(cell);
   }
 }
@@ -393,6 +361,7 @@ function selectCell(r, c){
 
 function setValue(v){
   if(solved || !selected) return;
+  if(givens[selected.r][selected.c] !== 0) return; // can't overwrite a given
   clearHintHighlight();
   if(startTime === null) startTimer();
   grid[selected.r][selected.c] = v;
@@ -402,7 +371,7 @@ function setValue(v){
 
 document.addEventListener('keydown', (e) => {
   if(solved || !selected) return;
-  if(e.key >= '1' && e.key <= String(N)){
+  if(e.key >= '1' && e.key <= '9'){
     setValue(Number(e.key));
   } else if(e.key === 'Backspace' || e.key === 'Delete' || e.key === '0'){
     setValue(0);
@@ -417,11 +386,26 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+function boxOf(r, c){ return { br: Math.floor(r/3)*3, bc: Math.floor(c/3)*3 }; }
+
+function isPeer(r, c, r2, c2){
+  if(r === r2 && c === c2) return false;
+  if(r === r2 || c === c2) return true;
+  const a = boxOf(r, c), b = boxOf(r2, c2);
+  return a.br === b.br && a.bc === b.bc;
+}
+
 function hasConflict(r, c){
   const v = grid[r][c];
   if(v === 0) return false;
   for(let cc = 0; cc < N; cc++) if(cc !== c && grid[r][cc] === v) return true;
   for(let rr = 0; rr < N; rr++) if(rr !== r && grid[rr][c] === v) return true;
+  const { br, bc } = boxOf(r, c);
+  for(let rr = br; rr < br + 3; rr++){
+    for(let cc = bc; cc < bc + 3; cc++){
+      if((rr !== r || cc !== c) && grid[rr][cc] === v) return true;
+    }
+  }
   return false;
 }
 
@@ -432,6 +416,7 @@ function render(){
       const v = grid[r][c];
       cell.textContent = v === 0 ? '' : v;
       cell.classList.toggle('selected', !!selected && selected.r === r && selected.c === c);
+      cell.classList.toggle('peer', !!selected && isPeer(selected.r, selected.c, r, c));
       cell.classList.toggle('conflict', hasConflict(r, c));
     }
   }
@@ -484,7 +469,7 @@ function flashHintMsg(text, cls){
 function findMistake(){
   for(let r = 0; r < N; r++){
     for(let c = 0; c < N; c++){
-      if(grid[r][c] !== 0 && grid[r][c] !== solution[r][c]) return { r, c };
+      if(givens[r][c] === 0 && grid[r][c] !== 0 && grid[r][c] !== solution[r][c]) return { r, c };
     }
   }
   return null;
@@ -506,7 +491,7 @@ document.getElementById('hintBtn').addEventListener('click', () => {
   const mistake = findMistake();
   if(mistake){
     showHint(mistake.r, mistake.c, 'hint-bad', 'bad',
-      'That number doesn’t belong there — recheck the clues for this row and column.');
+      'That digit doesn’t belong there — recheck its row, column, and box.');
     return;
   }
 
@@ -521,7 +506,7 @@ document.getElementById('hintBtn').addEventListener('click', () => {
 document.getElementById('resetBtn').addEventListener('click', () => {
   clearHintHighlight();
   document.getElementById('hintMsg').classList.remove('show');
-  for(let r = 0; r < N; r++) for(let c = 0; c < N; c++) grid[r][c] = 0;
+  for(let r = 0; r < N; r++) for(let c = 0; c < N; c++) grid[r][c] = givens[r][c];
   selected = null;
   solved = false;
   startTime = null;
