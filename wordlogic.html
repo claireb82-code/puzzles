@@ -152,12 +152,12 @@ h1{
   font-family:'IBM Plex Mono', monospace;
   font-size:12px;
   color:var(--ink-muted);
-  border-bottom:1px solid var(--line-soft);
+  border-bottom:1px solid var(--line);
   white-space:nowrap;
 }
 .rowlabel.people{ color:var(--ink); font-weight:500; }
 
-.rowlabel.block-start{ border-top:1px solid var(--amber-dim); }
+.rowlabel.block-start{ border-top:2px solid var(--amber-dim); }
 
 .colhead{
   display:flex;
@@ -171,39 +171,44 @@ h1{
   transform: rotate(180deg);
   font-family:'IBM Plex Mono', monospace;
   font-size:11px;
-  color:var(--ink-muted);
+  color:var(--ink);
   white-space:nowrap;
 }
 
 .gcell{
-  border:1px solid var(--line-soft);
-  border-bottom:1px solid var(--line-soft);
+  border:1px solid var(--line);
   display:flex;
   align-items:center;
   justify-content:center;
   cursor:pointer;
-  font-size:16px;
-  font-weight:600;
+  font-size:17px;
+  font-weight:700;
   position:relative;
   transition:background .1s;
   user-select:none;
 }
-.gcell.block-start{ border-top:1px solid var(--amber-dim); }
-.gcell.col-block-start{ border-left:1px solid var(--amber-dim); }
+.gcell.block-start{ border-top:2px solid var(--amber-dim); }
+.gcell.col-block-start{ border-left:2px solid var(--amber-dim); }
 
-.gcell.confirmed{ color:var(--teal); }
+.gcell.confirmed{
+  color:var(--teal);
+  background:rgba(95,179,179,0.16);
+}
 .gcell.confirmed::after{ content:'●'; }
-.gcell.eliminated{ color:var(--ink-muted); opacity:0.55; }
-.gcell.eliminated::after{ content:'✕'; font-size:13px; }
+.gcell.eliminated{
+  color:var(--ink-muted);
+  background:rgba(139,143,152,0.10);
+}
+.gcell.eliminated::after{ content:'✕'; font-size:15px; font-weight:700; opacity:0.8; }
 
 .gcell.filler{
   cursor:default;
   background:
-    repeating-linear-gradient(135deg, var(--line-soft) 0, var(--line-soft) 1px, transparent 1px, transparent 7px);
-  border-color:var(--line-soft);
+    repeating-linear-gradient(135deg, var(--line) 0px, var(--line) 3px, var(--bg) 3px, var(--bg) 11px);
+  border-color:var(--line);
 }
-.gcell.filler.block-start{ border-top:1px solid var(--amber-dim); }
-.gcell.filler.col-block-start{ border-left:1px solid var(--amber-dim); }
+.gcell.filler.block-start{ border-top:2px solid var(--amber-dim); }
+.gcell.filler.col-block-start{ border-left:2px solid var(--amber-dim); }
 
 @keyframes hint-pulse{
   from{ box-shadow:0 0 0 3px var(--pulse-color) inset, 0 0 4px var(--pulse-color); }
