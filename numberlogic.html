@@ -175,6 +175,11 @@ h1{
   transition:border-color .15s, color .15s, background .15s;
 }
 .keypad button:hover{ border-color:var(--amber); color:var(--amber); }
+.keypad button.used{
+  opacity:0.25;
+  cursor:default;
+  pointer-events:none;
+}
 .keypad button.clear{
   font-family:'IBM Plex Mono', monospace;
   font-size:12px;
@@ -425,11 +430,13 @@ for(let r = 0; r < N; r++){
 
 // ── Keypad ───────────────────────────────────────────────────────────────
 const keypad = document.getElementById('keypad');
+const keypadRefs = [];
 for(let v = 1; v <= N; v++){
   const btn = document.createElement('button');
   btn.textContent = v;
   btn.addEventListener('click', () => setValue(v));
   keypad.appendChild(btn);
+  keypadRefs.push(btn);
 }
 const clearBtn = document.createElement('button');
 clearBtn.className = 'clear';
@@ -506,6 +513,10 @@ function render(){
       cell.classList.toggle('conflict', hasConflict(r, c));
     }
   }
+
+  const counts = Array(N + 1).fill(0);
+  for(let r = 0; r < N; r++) for(let c = 0; c < N; c++) if(grid[r][c] !== 0) counts[grid[r][c]]++;
+  for(let v = 1; v <= N; v++) keypadRefs[v - 1].classList.toggle('used', counts[v] >= N);
 }
 
 function checkWin(){
