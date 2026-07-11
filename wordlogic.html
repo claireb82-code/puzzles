@@ -35,7 +35,7 @@ body{
 }
 
 .wrap{
-  max-width:760px;
+  max-width:1040px;
   margin:0 auto;
 }
 
@@ -120,12 +120,20 @@ h1{
 }
 .reset-btn:hover{ border-color:var(--amber); color:var(--amber); }
 
+.play-area{
+  display:flex;
+  align-items:flex-start;
+  gap:20px;
+  flex-wrap:wrap;
+}
+
 .board-panel{
   background:var(--panel);
   border:1px solid var(--line);
   border-radius:14px;
   padding:22px;
   overflow-x:auto;
+  flex:0 0 auto;
 }
 
 .lgrid{
@@ -229,11 +237,16 @@ h1{
 .hint-msg.good{ color:var(--yellow); }
 
 .clues-panel{
-  margin-top:22px;
   background:var(--panel);
   border:1px solid var(--line);
   border-radius:14px;
   padding:22px;
+  flex:1 1 260px;
+  min-width:240px;
+  position:sticky;
+  top:20px;
+  max-height:calc(100vh - 40px);
+  overflow-y:auto;
 }
 .clues-panel h2{
   font-family:'Space Grotesk', sans-serif;
@@ -250,6 +263,11 @@ h1{
 .clues-panel ol li::marker{
   font-family:'IBM Plex Mono', monospace;
   color:var(--amber);
+}
+
+@media (max-width: 860px){
+  .play-area{ flex-direction:column; }
+  .clues-panel{ position:static; max-height:none; width:100%; }
 }
 
 .win-banner{
@@ -299,22 +317,22 @@ h1{
     </div>
   </div>
 
-  <div class="board-panel">
-    <div class="lgrid" id="lgrid"></div>
-    <div class="legend">
-      <span><span class="mark">●</span> confirmed</span>
-      <span><span class="markx">✕</span> eliminated</span>
-      <span>Right-click = quick eliminate</span>
+  <div class="play-area">
+    <div class="board-panel">
+      <div class="lgrid" id="lgrid"></div>
+      <div class="legend">
+        <span><span class="mark">●</span> confirmed</span>
+        <span><span class="markx">✕</span> eliminated</span>
+        <span>Right-click = quick eliminate</span>
+      </div>
+      <div class="hint-msg" id="hintMsg"></div>
+      <div class="win-banner" id="winBanner">✓ Solved — nice deduction. Come back tomorrow for the number logic puzzle.</div>
     </div>
-  </div>
 
-  <div class="hint-msg" id="hintMsg"></div>
-
-  <div class="win-banner" id="winBanner">✓ Solved — nice deduction. Come back tomorrow for the number logic puzzle.</div>
-
-  <div class="clues-panel">
-    <h2>Clues</h2>
-    <ol id="cluesList"></ol>
+    <div class="clues-panel">
+      <h2>Clues</h2>
+      <ol id="cluesList"></ol>
+    </div>
   </div>
 
   <div class="footer-note">
