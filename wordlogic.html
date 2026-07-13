@@ -586,6 +586,10 @@ function attachHandlers(cell, key, r, c){
   });
 }
 
+// Cells auto-eliminated by each confirm, so un-confirming can undo them:
+// key "PP-1-2" (the confirmed cell) -> array of [r, c] it eliminated.
+const autoEliminated = new Map();
+
 function setCell(key, r, c, forceEliminate){
   if(solved) return;
   clearHintHighlight();
@@ -594,6 +598,7 @@ function setCell(key, r, c, forceEliminate){
   const grid = gridFor(key);
   const useEliminate = forceEliminate || mode === 'eliminate';
   const current = grid[r][c];
+  const cellId = `${key}-${r}-${c}`;
 
   if(useEliminate){
     grid[r][c] = current === 2 ? 0 : 2;
@@ -601,8 +606,21 @@ function setCell(key, r, c, forceEliminate){
     const newValue = current === 1 ? 0 : 1;
     grid[r][c] = newValue;
     if(newValue === 1){
-      for(let cc = 0; cc < 4; cc++) if(cc !== c && grid[r][cc] !== 1) grid[r][cc] = 2;
-      for(let rr = 0; rr < 4; rr++) if(rr !== r && grid[rr][c] !== 1) grid[rr][c] = 2;
+      const cascaded = [];
+      for(let cc = 0; cc < 4; cc++){
+        if(cc !== c && grid[r][cc] === 0){ grid[r][cc] = 2; cascaded.push([r, cc]); }
+      }
+      for(let rr = 0; rr < 4; rr++){
+        if(rr !== r && grid[rr][c] === 0){ grid[rr][c] = 2; cascaded.push([rr, c]); }
+      }
+      autoEliminated.set(cellId, cascaded);
+    } else {
+      // un-confirm: revert this confirm's auto-eliminations (if still intact)
+      const cascaded = autoEliminated.get(cellId) || [];
+      for(const [rr, cc] of cascaded){
+        if(grid[rr][cc] === 2) grid[rr][cc] = 0;
+      }
+      autoEliminated.delete(cellId);
     }
   }
   render();
@@ -672,11 +690,13 @@ function showHint(key, r, c, cellClass, msgClass, text){
   }, 4000);
 }
 
+let msgTimeout = null;
 function flashHintMsg(text, cls){
   const el = document.getElementById('hintMsg');
   el.textContent = text;
   el.className = 'hint-msg show' + (cls ? ' ' + cls : '');
-  setTimeout(() => { el.classList.remove('show'); }, 4000);
+  if(msgTimeout) clearTimeout(msgTimeout);
+  msgTimeout = setTimeout(() => { el.classList.remove('show'); }, 4000);
 }
 
 function findMistake(){
@@ -738,6 +758,7 @@ document.getElementById('resetBtn').addEventListener('click', () => {
   [PP, PD, XD].forEach(grid => {
     for(let r = 0; r < 4; r++) for(let c = 0; c < 4; c++) grid[r][c] = 0;
   });
+  autoEliminated.clear();
   solved = false;
   startTime = null;
   clearInterval(timerInterval);

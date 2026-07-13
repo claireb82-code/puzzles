@@ -200,7 +200,7 @@ h1{
   transition:background .1s;
 }
 
-.cell:nth-child(5n){ border-right:1px solid var(--amber-dim); }
+.col-block-border{ border-right:1px solid var(--amber-dim); }
 
 .cell.filled{
   background:var(--amber);
@@ -560,6 +560,7 @@ for(let r=0;r<ROWS;r++){
     cell.dataset.r = r;
     cell.dataset.c = c;
     if((r+1) % 5 === 0 && r !== ROWS-1) cell.classList.add('row-block-border');
+    if((c+1) % 5 === 0 && c !== COLS-1) cell.classList.add('col-block-border');
     cell.addEventListener('mousedown', (e) => {
       if(e.button !== 0) return;
       e.preventDefault();
@@ -751,11 +752,13 @@ function showHint(r, c, cellClass, msgClass, text){
   }, 4000);
 }
 
+let msgTimeout = null;
 function flashHintMsg(text, cls){
   const el = document.getElementById('hintMsg');
   el.textContent = text;
   el.className = 'hint-msg show' + (cls ? ' ' + cls : '');
-  setTimeout(() => { el.classList.remove('show'); }, 4000);
+  if(msgTimeout) clearTimeout(msgTimeout);
+  msgTimeout = setTimeout(() => { el.classList.remove('show'); }, 4000);
 }
 
 function findMistake(){
