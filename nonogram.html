@@ -519,6 +519,61 @@ let startTime = null;
 let timerInterval = null;
 let solved = false;
 
+// ── Persistence (state survives reload within the same day) ──────────────
+const _params = new URLSearchParams(location.search);
+const persistEnabled = !_params.has('nosave');
+const PERSIST_PREFIX = 'dailylogic-nonogram-';
+const PERSIST_KEY = PERSIST_PREFIX + (_params.has('persisttest') ? 'TEST' : todayISO());
+let elapsedOffset = 0; // seconds carried over from a restored session
+
+function updateTimerText(totalSeconds){
+  const m = String(Math.floor(totalSeconds/60)).padStart(2,'0');
+  const s = String(totalSeconds%60).padStart(2,'0');
+  document.getElementById('timer').textContent = `${m}:${s}`;
+}
+
+function currentElapsed(){
+  return elapsedOffset + (startTime ? Math.floor((Date.now() - startTime)/1000) : 0);
+}
+
+function saveState(){
+  if(!persistEnabled) return;
+  try{
+    localStorage.setItem(PERSIST_KEY, JSON.stringify({ state, elapsed: currentElapsed(), solved }));
+  } catch(e){ /* storage unavailable — keep playing without saving */ }
+}
+
+function clearSavedState(){
+  if(!persistEnabled) return;
+  try{ localStorage.removeItem(PERSIST_KEY); } catch(e){}
+}
+
+function restoreState(){
+  if(!persistEnabled) return;
+  try{
+    if(!_params.has('persisttest')){
+      for(let i = localStorage.length - 1; i >= 0; i--){
+        const k = localStorage.key(i);
+        if(k && k.startsWith(PERSIST_PREFIX) && k !== PERSIST_KEY) localStorage.removeItem(k);
+      }
+    }
+    const raw = localStorage.getItem(PERSIST_KEY);
+    if(!raw) return;
+    const saved = JSON.parse(raw);
+    if(!Array.isArray(saved.state) || saved.state.length !== ROWS) return;
+    for(let r = 0; r < ROWS; r++){
+      for(let c = 0; c < COLS; c++){
+        const v = saved.state[r][c];
+        if(v === 0 || v === 1 || v === 2) state[r][c] = v;
+      }
+    }
+    elapsedOffset = Number.isFinite(saved.elapsed) ? saved.elapsed : 0;
+    updateTimerText(elapsedOffset);
+    render();
+    checkWin();
+  } catch(e){ /* corrupt save — start fresh */ }
+}
+
 const gridOuter = document.getElementById('gridOuter');
 
 const corner = document.createElement('div');
@@ -611,6 +666,7 @@ function beginStroke(r,c,forceMark){
   state[r][c] = newValue;
   render();
   checkWin();
+  saveState();
 }
 
 function applyStroke(r,c){
@@ -619,6 +675,7 @@ function applyStroke(r,c){
   state[r][c] = strokeValue;
   render();
   checkWin();
+  saveState();
 }
 
 function render(){
@@ -697,10 +754,7 @@ function checkWin(){
 function startTimer(){
   startTime = Date.now();
   timerInterval = setInterval(() => {
-    const elapsed = Math.floor((Date.now() - startTime)/1000);
-    const m = String(Math.floor(elapsed/60)).padStart(2,'0');
-    const s = String(elapsed%60).padStart(2,'0');
-    document.getElementById('timer').textContent = `${m}:${s}`;
+    updateTimerText(elapsedOffset + Math.floor((Date.now() - startTime)/1000));
   }, 1000);
 }
 
@@ -792,6 +846,8 @@ document.getElementById('resetBtn').addEventListener('click', () => {
   for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) state[r][c] = 0;
   solved = false;
   startTime = null;
+  elapsedOffset = 0;
+  clearSavedState();
   clearInterval(timerInterval);
   document.getElementById('timer').textContent = '00:00';
   document.getElementById('winBanner').classList.remove('show');
@@ -799,6 +855,7 @@ document.getElementById('resetBtn').addEventListener('click', () => {
 });
 
 render();
+restoreState();
 </script>
 </body>
 </html>

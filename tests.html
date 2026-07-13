@@ -142,10 +142,10 @@ function assertEq(actual, expected, msg){
 // and are called directly.
 function inFrame(win, code){ return win.eval('(() => {' + code + '})()'); }
 
-function loadFrame(src){
+function loadFrame(src, query = 'nosave=1'){
   return new Promise((resolve, reject) => {
     const f = document.createElement('iframe');
-    f.src = `${src}?nosave=1&_=${Date.now()}`;
+    f.src = `${src}?${query}&_=${Date.now()}`;
     f.style.cssText = 'position:absolute;left:-10000px;top:0;width:1200px;height:1200px;border:0;';
     f.onload = () => resolve(f.contentWindow);
     f.onerror = () => reject(new Error(`failed to load ${src}`));
@@ -604,6 +604,90 @@ async function main(){
       `);
       assert(res.won, 'win banner not shown on correct solve');
       assert(res.resetCleared, 'reset did not clear solved state');
+    }],
+  ]);
+
+  // ── Persistence (uses ?persisttest=1 -> a TEST key, so the user's real
+  //    daily progress is never touched) ────────────────────────────────────
+  await runGroup('Persistence', [
+    ['sudoku: a move survives a reload; reset clears the save', async () => {
+      localStorage.removeItem('dailylogic-sudoku-TEST');
+      const f1 = await loadFrame('numberlogic.html', 'persisttest=1');
+      inFrame(f1, `
+        let er = -1, ec = -1;
+        outer: for(let r = 0; r < 9; r++) for(let c = 0; c < 9; c++)
+          if(givens[r][c] === 0){ er = r; ec = c; break outer; }
+        selectCell(er, ec);
+        setValue(solution[er][ec]);
+      `);
+      assert(localStorage.getItem('dailylogic-sudoku-TEST'), 'nothing was saved');
+      const f2 = await loadFrame('numberlogic.html', 'persisttest=1');
+      assert(inFrame(f2, `
+        let er = -1, ec = -1;
+        outer: for(let r = 0; r < 9; r++) for(let c = 0; c < 9; c++)
+          if(givens[r][c] === 0){ er = r; ec = c; break outer; }
+        return grid[er][ec] === solution[er][ec];
+      `), 'move not restored after reload');
+      f2.document.getElementById('resetBtn').click();
+      assert(!localStorage.getItem('dailylogic-sudoku-TEST'), 'reset did not clear the save');
+    }],
+    ['word logic: cascade undo still works after a reload', async () => {
+      localStorage.removeItem('dailylogic-wordlogic-TEST');
+      const f1 = await loadFrame('wordlogic.html', 'persisttest=1');
+      inFrame(f1, `setCell('PP', 0, 2, false);`);
+      const f2 = await loadFrame('wordlogic.html', 'persisttest=1');
+      const res = inFrame(f2, `
+        const restored = PP[0][2] === 1 && PP[0][0] === 2;
+        setCell('PP', 0, 2, false); // un-confirm after the reload
+        const reverted = PP.flat().every(v => v === 0);
+        document.getElementById('resetBtn').click();
+        return { restored, reverted };
+      `);
+      assert(res.restored, 'confirm + cascade not restored');
+      assert(res.reverted, 'cascade undo broken after reload (autoEliminated map lost)');
+      assert(!localStorage.getItem('dailylogic-wordlogic-TEST'), 'reset did not clear the save');
+    }],
+    ['nonogram: fills and marks survive a reload', async () => {
+      localStorage.removeItem('dailylogic-nonogram-TEST');
+      const f1 = await loadFrame('nonogram.html', 'persisttest=1');
+      // fill a correct cell in a row needing >1 fill; mark a cell in another row/col
+      const picked = inFrame(f1, `
+        let fr = -1, fc = -1;
+        outer: for(let r = 0; r < ROWS; r++){
+          if(solution[r].reduce((a, b) => a + b, 0) < 2) continue;
+          for(let c = 0; c < COLS; c++) if(solution[r][c] === 1){ fr = r; fc = c; break outer; }
+        }
+        let mr = -1, mc = -1;
+        outer2: for(let r = 0; r < ROWS; r++){
+          if(r === fr) continue;
+          for(let c = 0; c < COLS; c++)
+            if(c !== fc && solution[r][c] === 0){ mr = r; mc = c; break outer2; }
+        }
+        beginStroke(fr, fc, false);
+        beginStroke(mr, mc, true);
+        return { fr, fc, mr, mc };
+      `);
+      const f2 = await loadFrame('nonogram.html', 'persisttest=1');
+      const res = inFrame(f2, `
+        const out = {
+          fillRestored: state[${picked.fr}][${picked.fc}] === 1,
+          markRestored: state[${picked.mr}][${picked.mc}] === 2,
+        };
+        document.getElementById('resetBtn').click();
+        return out;
+      `);
+      assert(res.fillRestored, 'fill not restored');
+      assert(res.markRestored, 'mark not restored');
+      assert(!localStorage.getItem('dailylogic-nonogram-TEST'), 'reset did not clear the save');
+    }],
+    ['?nosave frames never write to localStorage', () => {
+      // every earlier UI test ran in a ?nosave frame and made many moves;
+      // if any real daily key appeared, the flag is broken
+      for(let i = 0; i < localStorage.length; i++){
+        const k = localStorage.key(i);
+        assert(!(k && k.startsWith('dailylogic-') && !k.endsWith('-TEST')),
+          `nosave frame leaked a save: ${k}`);
+      }
     }],
   ]);
 

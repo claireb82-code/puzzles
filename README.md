@@ -62,9 +62,17 @@ no blank lines, given counts), rotation math, and UI behavior (win/reset/hint fl
 marking, cascade undo, keypad state). No build step or test framework — same philosophy as
 the puzzles.
 
+## Progress saving
+
+Each puzzle saves its state to `localStorage` on every move (keyed by puzzle type + date),
+so a reload or accidental tab close within the same day picks up exactly where you left off,
+including the timer. Reset clears the save; old days' saves are purged automatically.
+
 ## Roadmap
 
 - [x] Word logic puzzle
 - [x] Sudoku puzzle
 - [x] Procedural daily generation for all three types
 - [x] Day-rotation hub page (`index.html`)
+- [x] In-browser test harness (`tests.html`)
+- [x] localStorage persistence (state + timer survive same-day reloads)
