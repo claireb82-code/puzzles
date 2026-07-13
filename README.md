@@ -3,6 +3,8 @@
 A personal rotating daily logic puzzle — nonogram, word logic, sudoku — built as
 self-contained HTML files (no build step, no dependencies).
 
+**Play it live: <https://claireb82-code.github.io/puzzles/>**
+
 Every puzzle is procedurally generated client-side, seeded from the current UTC date.
 Same date → same puzzle for everyone; a new date → a fresh puzzle, even for a type you've
 seen before. Nothing is stored server-side and there's no build step — open a file and the
@@ -10,21 +12,24 @@ puzzle for today generates itself in the page.
 
 ## Start here
 
-Open [`index.html`](index.html) — it works out which puzzle type is up today and links to it,
-plus lists all three so you can jump to any of them regardless of the rotation.
+Open [`index.html`](index.html) (or the live link above) — it works out which puzzle type is
+up today and links to it, plus lists all three so you can jump to any of them regardless of
+the rotation.
 
 ## Rotation
 
 Day-of-epoch mod 3 (UTC), so it cycles continuously:
 
-1. **Nonogram** (`nonogram.html`) — "Picture Logic". 15×15 grid-fill, three blob shapes
-   stamped onto the grid, drag-to-fill, live hint/mistake button, auto-marks a line once
-   it's fully solved.
+1. **Nonogram** (`nonogram.html`) — "Picture Logic". 15×15 grid-fill, several shape clusters
+   scattered across the grid, drag-to-fill, live hint/mistake button, auto-marks a line once
+   it's fully solved. Every row and column has at least one filled cell.
 2. **Word logic** (`wordlogic.html`) — "Desk Neighbors". 4 people × pet × drink, staircase
-   elimination grid (confirm/eliminate cells, right-click to quick-eliminate), live
+   elimination grid with the clue list alongside it (confirm/eliminate cells, right-click to
+   quick-eliminate; un-confirming a cell also undoes the eliminations it auto-added), live
    hint/mistake button.
 3. **Sudoku** (`numberlogic.html`) — "Nine". Classic 9×9, 32 givens, keyboard/keypad entry,
-   live row/column/box conflict highlighting and peer highlighting, live hint/mistake button.
+   live row/column/box conflict highlighting and peer highlighting, keypad digits grey out
+   once fully placed, live hint/mistake button.
 
 ## How the generation is verified
 
@@ -38,11 +43,13 @@ of that, each generator proves its own output is soundly unique before showing i
 - **Word logic** — builds a pool of true statements about a randomized person/pet/drink
   assignment (deliberately excluding direct "X has Y" giveaways), then greedily drops clues
   while brute-force checking all 576 possible assignments still yield exactly one match.
-- **Nonogram** — stamps 2–4 overlapping rectangles into 3 diagonally-spread bands to form a
-  grid, then runs the clues through a line-propagation constraint solver to a fixpoint. If
-  every cell ends up determined, that assignment was logically forced at every step — which
-  proves both that it's solvable without guessing *and* that the solution is unique. If a
-  generated grid doesn't converge (rare), it retries with a new one.
+- **Nonogram** — stamps 3–5 small overlapping rectangles into each of 5 diagonally-spread
+  bands to form a grid, then runs the clues through a line-propagation constraint solver to
+  a fixpoint. If every cell ends up determined, that assignment was logically forced at every
+  step — which proves both that it's solvable without guessing *and* that the solution is
+  unique. Candidate grids are rejected if any row/column is completely blank (free auto-solved
+  lines) or if the solver converges in fewer than 4 passes (too easy — no cross-referencing
+  needed); it retries with a new grid until one qualifies.
 
 `scripts/sudoku_gen.py` is the original Python prototype used to validate the sudoku approach
 before porting it to the in-browser JS generator — kept for reference, not used at runtime.
@@ -55,12 +62,14 @@ type regardless of what's "due" today — everything runs client-side.
 ## Testing
 
 Open `tests.html` in a browser (needs to be served over HTTP, e.g. `python3 -m http.server`,
-since it loads the puzzle pages in iframes). It runs ~40 tests against the live page code:
-pure-function unit tests, determinism checks (including a guard that generators never touch
-unseeded `Math.random`), generator invariants across dozens of seeds (uniqueness, solvability,
-no blank lines, given counts), rotation math, and UI behavior (win/reset/hint flows, conflict
-marking, cascade undo, keypad state). No build step or test framework — same philosophy as
-the puzzles.
+since it loads the puzzle pages in iframes — it also runs on the live site). It runs 43 tests
+against the live page code: pure-function unit tests, determinism checks (including a guard
+that generators never touch unseeded `Math.random`), generator invariants across dozens of
+seeds (uniqueness, solvability, no blank lines, given counts), rotation math, UI behavior
+(win/reset/hint flows, conflict marking, cascade undo, keypad state), and persistence
+round-trips (save/reload/restore, reset-clears-save). Persistence tests use a dedicated TEST
+storage key via `?persisttest=1`, and all other UI tests load frames with `?nosave=1`, so a
+test run never touches your real daily progress.
 
 ## Progress saving
 
