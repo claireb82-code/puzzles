@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Daily Logic — Tests</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap');
+
+:root{
+  --bg: #1B1E23;
+  --panel: #22262D;
+  --line: #363B44;
+  --line-soft: #2B2F37;
+  --ink: #F0EDE6;
+  --ink-muted: #8B8F98;
+  --amber: #E8A33D;
+  --yellow: #E8D34A;
+  --teal: #5FB3B3;
+  --error: #E0636B;
+}
+
+*{box-sizing:border-box;}
+
+body{
+  margin:0;
+  background:
+    linear-gradient(var(--line-soft) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, var(--line-soft) 1px, transparent 1px) 0 0 / 24px 24px,
+    var(--bg);
+  color:var(--ink);
+  font-family:'IBM Plex Sans', sans-serif;
+  min-height:100vh;
+  padding:28px 16px 60px;
+}
+
+.wrap{ max-width:860px; margin:0 auto; }
+
+.eyebrow{
+  font-family:'IBM Plex Mono', monospace;
+  font-size:11px;
+  letter-spacing:0.14em;
+  color:var(--teal);
+  text-transform:uppercase;
+  margin-bottom:6px;
+}
+
+h1{
+  font-family:'Space Grotesk', sans-serif;
+  font-weight:700;
+  font-size:32px;
+  margin:0 0 4px;
+}
+
+.sub{ color:var(--ink-muted); font-size:14px; margin:0 0 22px; line-height:1.5; }
+
+.summary{
+  font-family:'IBM Plex Mono', monospace;
+  font-size:14px;
+  padding:14px 18px;
+  border-radius:10px;
+  border:1px solid var(--line);
+  background:var(--panel);
+  margin-bottom:20px;
+  display:flex;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:10px;
+}
+.summary.pass{ border-color:var(--teal); color:var(--teal); }
+.summary.fail{ border-color:var(--error); color:var(--error); }
+
+.group{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:18px 22px;
+  margin-bottom:14px;
+}
+.group h2{
+  font-family:'Space Grotesk', sans-serif;
+  font-size:16px;
+  margin:0 0 10px;
+  display:flex;
+  justify-content:space-between;
+}
+.group h2 .gtime{ font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--ink-muted); font-weight:400; }
+.t{
+  font-family:'IBM Plex Mono', monospace;
+  font-size:12.5px;
+  padding:4px 0;
+  display:flex;
+  gap:10px;
+  align-items:baseline;
+  flex-wrap:wrap;
+}
+.t .mark{ flex:0 0 auto; }
+.t.pass .mark{ color:var(--teal); }
+.t.fail .mark{ color:var(--error); }
+.t.fail{ color:var(--error); }
+.t .err{ color:var(--error); opacity:0.85; margin-left:26px; flex-basis:100%; }
+
+.rerun{
+  background:transparent;
+  border:1px solid var(--line);
+  color:var(--ink-muted);
+  border-radius:8px;
+  padding:8px 14px;
+  font-family:'IBM Plex Mono', monospace;
+  font-size:12px;
+  cursor:pointer;
+}
+.rerun:hover{ border-color:var(--amber); color:var(--amber); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Daily Logic · Test Harness</div>
+  <h1>Tests</h1>
+  <p class="sub">Loads each puzzle page in a hidden iframe and runs unit tests, generator invariants across many seeds, and UI behavior checks against the live page code. No build step, no dependencies — same philosophy as the puzzles.</p>
+
+  <div class="summary" id="summary">Running…</div>
+  <div id="groups"></div>
+  <button class="rerun" onclick="location.reload()">Run again</button>
+</div>
+
+<script>
+const summaryEl = document.getElementById('summary');
+const groupsEl = document.getElementById('groups');
+let totalPass = 0, totalFail = 0;
+
+function assert(cond, msg){ if(!cond) throw new Error(msg || 'assertion failed'); }
+function assertEq(actual, expected, msg){
+  if(JSON.stringify(actual) !== JSON.stringify(expected)){
+    throw new Error(`${msg || 'mismatch'} — expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+  }
+}
+
+// Top-level const/let in a page's script are global *lexical* bindings, not
+// window properties, so they're invisible as frame.contentWindow.foo. Indirect
+// eval inside the frame's realm can still reach them — that's how all state
+// probes below work. Function declarations (the generators) ARE window props
+// and are called directly.
+function inFrame(win, code){ return win.eval('(() => {' + code + '})()'); }
+
+function loadFrame(src){
+  return new Promise((resolve, reject) => {
+    const f = document.createElement('iframe');
+    f.src = `${src}?nosave=1&_=${Date.now()}`;
+    f.style.cssText = 'position:absolute;left:-10000px;top:0;width:1200px;height:1200px;border:0;';
+    f.onload = () => resolve(f.contentWindow);
+    f.onerror = () => reject(new Error(`failed to load ${src}`));
+    document.body.appendChild(f);
+  });
+}
+
+async function runGroup(title, tests){
+  const div = document.createElement('div');
+  div.className = 'group';
+  const h = document.createElement('h2');
+  h.innerHTML = `<span>${title}</span><span class="gtime"></span>`;
+  div.appendChild(h);
+  groupsEl.appendChild(div);
+  const t0 = performance.now();
+
+  for(const [name, fn] of tests){
+    const row = document.createElement('div');
+    row.className = 't';
+    try{
+      await fn();
+      row.classList.add('pass');
+      row.innerHTML = `<span class="mark">✓</span><span>${name}</span>`;
+      totalPass++;
+    } catch(e){
+      row.classList.add('fail');
+      row.innerHTML = `<span class="mark">✗</span><span>${name}</span><div class="err">${e.message}</div>`;
+      totalFail++;
+    }
+    div.appendChild(row);
+    updateSummary(false);
+    await new Promise(r => setTimeout(r, 0)); // let the UI repaint
+  }
+  h.querySelector('.gtime').textContent = `${Math.round(performance.now() - t0)} ms`;
+}
+
+function updateSummary(done){
+  summaryEl.textContent = `${totalPass} passed · ${totalFail} failed${done ? '' : ' · running…'}`;
+  if(done) summaryEl.classList.add(totalFail === 0 ? 'pass' : 'fail');
+}
+
+// Wraps a generation call so any accidental use of unseeded Math.random throws.
+function withRandomBanned(win, fn){
+  const orig = win.Math.random;
+  win.Math.random = () => { throw new Error('generator called Math.random — must use the seeded RNG'); };
+  try{ return fn(); } finally { win.Math.random = orig; }
+}
+
+async function main(){
+  const [nono, word, sudo, index] = await Promise.all([
+    loadFrame('nonogram.html'),
+    loadFrame('wordlogic.html'),
+    loadFrame('numberlogic.html'),
+    loadFrame('index.html'),
+  ]);
+
+  // ── Pure function unit tests ──────────────────────────────────────────
+  await runGroup('Unit — runsOf & line solver (nonogram)', [
+    ['runsOf: empty line -> [0]', () => assertEq(nono.runsOf([0,0,0]), [0])],
+    ['runsOf: full line -> [n]', () => assertEq(nono.runsOf([1,1,1]), [3])],
+    ['runsOf: split runs', () => assertEq(nono.runsOf([1,0,1,1,0,1]), [1,2,1])],
+    ['runsOf: leading/trailing zeros', () => assertEq(nono.runsOf([0,1,1,0]), [2])],
+    ['placements: exact fit has one placement', () => {
+      assertEq(nono.linePossiblePlacements(5, [2,2], [0,0,0,0,0]).length, 1);
+    }],
+    ['placements: [1] in length 3 has three placements', () => {
+      assertEq(nono.linePossiblePlacements(3, [1], [0,0,0]).length, 3);
+    }],
+    ['placements: contradiction returns none', () => {
+      assertEq(nono.linePossiblePlacements(3, [0], [0,1,0]).length, 0);
+    }],
+    ['solveLine: overlap forces middle cells', () => {
+      const { newKnown, ok } = nono.solveLine(5, [4], [0,0,0,0,0]);
+      assert(ok, 'should be consistent');
+      assertEq(newKnown, [0,1,1,1,0]);
+    }],
+    ['propagate: ambiguous clue set is not reported solved', () => {
+      // 2x2 with clues [1]/[1] everywhere has two diagonal solutions
+      const res = nono.propagate(2, [[1],[1]], [[1],[1]]);
+      assert(!res.solved, 'ambiguous clue set must not be reported solved');
+    }],
+  ]);
+
+  // ── Determinism ───────────────────────────────────────────────────────
+  await runGroup('Determinism', [
+    ['same seed -> identical nonogram', () => {
+      const a = nono.generateNonogram('det-test', 15, 5, 200, 4);
+      const b = nono.generateNonogram('det-test', 15, 5, 200, 4);
+      assertEq(a, b);
+    }],
+    ['same seed -> identical sudoku', () => {
+      const a = sudo.generateSudoku('det-test');
+      const b = sudo.generateSudoku('det-test');
+      assertEq(a, b);
+    }],
+    ['same seed -> identical word logic', () => {
+      const a = word.generateWordLogic('det-test');
+      const b = word.generateWordLogic('det-test');
+      assertEq(a, b);
+    }],
+    ['different seeds -> different puzzles', () => {
+      const a = sudo.generateSudoku('det-a');
+      const b = sudo.generateSudoku('det-b');
+      assert(JSON.stringify(a.solution) !== JSON.stringify(b.solution), 'seeds a/b gave identical sudoku');
+    }],
+    ['generators never touch Math.random', () => {
+      withRandomBanned(sudo, () => sudo.generateSudoku('rng-ban'));
+      withRandomBanned(word, () => word.generateWordLogic('rng-ban'));
+      withRandomBanned(nono, () => nono.generateNonogram('rng-ban', 15, 5, 200, 4));
+    }],
+  ]);
+
+  // ── Rotation math (index.html) ────────────────────────────────────────
+  const idxFor = d => ((index.daysSinceEpoch(d) % 3) + 3) % 3;
+  await runGroup('Rotation — index.html', [
+    ['epoch day 0 -> nonogram (index 0)', () => assertEq(idxFor('1970-01-01'), 0)],
+    ['known dates: 2026-07-10/11/12 -> word/sudoku/nonogram', () => {
+      assertEq(idxFor('2026-07-10'), 1, '2026-07-10');
+      assertEq(idxFor('2026-07-11'), 2, '2026-07-11');
+      assertEq(idxFor('2026-07-12'), 0, '2026-07-12');
+    }],
+    ['consecutive days always cycle by 1', () => {
+      for(let d = 1; d < 28; d++){
+        const a = idxFor(`2026-03-${String(d).padStart(2,'0')}`);
+        const b = idxFor(`2026-03-${String(d+1).padStart(2,'0')}`);
+        assertEq((a + 1) % 3, b, `2026-03-${d} -> +1 day`);
+      }
+    }],
+    ['featured link matches today\'s rotation entry', () => {
+      const expected = inFrame(index, 'return ROTATION[todaysIndex()].file;');
+      assert(index.document.getElementById('featuredLink').href.includes(expected),
+        `featured href should include ${expected}`);
+    }],
+  ]);
+
+  // ── Generator invariants across seeds ─────────────────────────────────
+  const sudokuSeeds = 15, wordSeeds = 25, nonoSeeds = 10;
+
+  await runGroup(`Invariants — sudoku (${sudokuSeeds} seeds)`, [
+    [`unique solution, 32 givens, valid grid`, () => {
+      for(let i = 0; i < sudokuSeeds; i++){
+        const { solution, givens } = sudo.generateSudoku('inv-' + i);
+        for(let r = 0; r < 9; r++){
+          assertEq([...solution[r]].sort().join(''), '123456789', `seed ${i} row ${r} invalid`);
+        }
+        for(let c = 0; c < 9; c++){
+          const col = solution.map(row => row[c]);
+          assertEq(col.sort().join(''), '123456789', `seed ${i} col ${c} invalid`);
+        }
+        for(let br = 0; br < 9; br += 3){
+          for(let bc = 0; bc < 9; bc += 3){
+            const box = [];
+            for(let r = br; r < br+3; r++) for(let c = bc; c < bc+3; c++) box.push(solution[r][c]);
+            assertEq(box.sort().join(''), '123456789', `seed ${i} box ${br},${bc} invalid`);
+          }
+        }
+        assert(givens.every((row, r) => row.every((v, c) => v === 0 || v === solution[r][c])),
+          `seed ${i}: given contradicts solution`);
+        assertEq(givens.flat().filter(v => v !== 0).length, 32, `seed ${i} givens count`);
+        assertEq(sudo.countSudokuSolutions(givens, 2), 1, `seed ${i} not unique`);
+      }
+    }],
+  ]);
+
+  await runGroup(`Invariants — word logic (${wordSeeds} seeds)`, [
+    ['clue set forces exactly 1 of 576 assignments', () => {
+      const ALL = word.permutations([0,1,2,3]);
+      const assignments = [];
+      for(const pp of ALL) for(const pd of ALL) assignments.push({ permP: pp, permD: pd });
+      for(let i = 0; i < wordSeeds; i++){
+        const p = word.generateWordLogic('inv-' + i);
+        const cands = word.buildCandidates(p.solPersonPet, p.solPersonDrink);
+        const active = cands.filter(c => p.clues.includes(c.text));
+        assertEq(active.length, p.clues.length, `seed ${i}: clue text not found in candidate pool`);
+        assertEq(word.countMatching(active, assignments), 1, `seed ${i} not unique`);
+      }
+    }],
+    ['no direct giveaway clues', () => {
+      for(let i = 0; i < wordSeeds; i++){
+        const p = word.generateWordLogic('inv-' + i);
+        for(const clue of p.clues){
+          assert(!/^(Ava|Ben|Cleo|Dev) has the /.test(clue), `seed ${i}: direct pet clue "${clue}"`);
+          assert(!/^(Ava|Ben|Cleo|Dev) drinks /.test(clue), `seed ${i}: direct drink clue "${clue}"`);
+        }
+      }
+    }],
+    ['no duplicate clues', () => {
+      for(let i = 0; i < wordSeeds; i++){
+        const p = word.generateWordLogic('inv-' + i);
+        assertEq(new Set(p.clues).size, p.clues.length, `seed ${i} has duplicate clue`);
+      }
+    }],
+  ]);
+
+  await runGroup(`Invariants — nonogram (${nonoSeeds} seeds)`, [
+    ['solvable by line logic alone, needs cross-referencing, no blank lines', () => {
+      for(let i = 0; i < nonoSeeds; i++){
+        const grid = nono.generateNonogram('inv-' + i, 15, 5, 200, 4);
+        const rowClues = grid.map(row => nono.runsOf(row));
+        const colClues = [];
+        for(let c = 0; c < 15; c++) colClues.push(nono.runsOf(grid.map(row => row[c])));
+        assert(!rowClues.some(rc => rc.length === 1 && rc[0] === 0), `seed ${i}: blank row`);
+        assert(!colClues.some(cc => cc.length === 1 && cc[0] === 0), `seed ${i}: blank col`);
+        const res = nono.propagate(15, rowClues, colClues);
+        assert(res.solved, `seed ${i}: not line-solvable (fallback grid leaked?)`);
+        assert(res.iterations >= 4, `seed ${i}: too easy (${res.iterations} iterations)`);
+      }
+    }],
+  ]);
+
+  // ── UI behavior — sudoku ──────────────────────────────────────────────
+  await runGroup('UI — sudoku', [
+    ['givens cannot be overwritten', () => {
+      assert(inFrame(sudo, `
+        let gr = -1, gc = -1;
+        outer: for(let r = 0; r < 9; r++) for(let c = 0; c < 9; c++)
+          if(givens[r][c] !== 0){ gr = r; gc = c; break outer; }
+        selectCell(gr, gc);
+        setValue(givens[gr][gc] % 9 + 1);
+        return grid[gr][gc] === givens[gr][gc];
+      `), 'given cell was changed');
+    }],
+    ['no stale conflict mark after clearing a conflicting cell', () => {
+      const res = inFrame(sudo, `
+        document.getElementById('resetBtn').click();
+        let r0 = -1, cs = [];
+        outer: for(let r = 0; r < 9; r++){
+          cs = [];
+          for(let c = 0; c < 9; c++) if(givens[r][c] === 0) cs.push(c);
+          if(cs.length >= 2){ r0 = r; break outer; }
+        }
+        selectCell(r0, cs[0]); setValue(5);
+        selectCell(r0, cs[1]); setValue(5);
+        const both = cellRefs[r0][cs[0]].classList.contains('conflict')
+                  && cellRefs[r0][cs[1]].classList.contains('conflict');
+        selectCell(r0, cs[1]); setValue(0);
+        // class must match freshly-computed truth — no stale UI state
+        const classMatchesTruth =
+          cellRefs[r0][cs[0]].classList.contains('conflict') === hasConflict(r0, cs[0]);
+        const clearedCellClean = !cellRefs[r0][cs[1]].classList.contains('conflict');
+        document.getElementById('resetBtn').click();
+        return { both, classMatchesTruth, clearedCellClean };
+      `);
+      assert(res.both, 'both cells should show conflict while duplicated');
+      assert(res.classMatchesTruth, 'stale conflict class after clearing');
+      assert(res.clearedCellClean, 'cleared cell still marked conflicting');
+    }],
+    ['keypad greys out on 9th placement, keyboard blocked, re-enables on clear', () => {
+      const res = inFrame(sudo, `
+        document.getElementById('resetBtn').click();
+        const targets = [];
+        for(let r = 0; r < 9; r++) for(let c = 0; c < 9; c++)
+          if(solution[r][c] === 1 && givens[r][c] === 0) targets.push([r, c]);
+        targets.forEach(([r, c]) => { selectCell(r, c); setValue(1); });
+        const greyed = keypadRefs[0].classList.contains('used');
+        let er = -1, ec = -1;
+        outer: for(let r = 0; r < 9; r++) for(let c = 0; c < 9; c++)
+          if(grid[r][c] === 0){ er = r; ec = c; break outer; }
+        selectCell(er, ec);
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: '1', bubbles: true }));
+        const blocked = grid[er][ec] === 0;
+        selectCell(targets[0][0], targets[0][1]); setValue(0);
+        const reenabled = !keypadRefs[0].classList.contains('used');
+        document.getElementById('resetBtn').click();
+        return { greyed, blocked, reenabled };
+      `);
+      assert(res.greyed, 'button not greyed at 9 placements');
+      assert(res.blocked, 'keyboard placed a fully-used digit');
+      assert(res.reenabled, 'button did not re-enable after clear');
+    }],
+    ['arrow keys prevent default (no page scroll)', () => {
+      const res = inFrame(sudo, `
+        selectCell(4, 4);
+        const ev = new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true });
+        document.dispatchEvent(ev);
+        const out = { prevented: ev.defaultPrevented, r: selected.r, c: selected.c };
+        document.getElementById('resetBtn').click();
+        return out;
+      `);
+      assert(res.prevented, 'ArrowUp not prevented');
+      assertEq({ r: res.r, c: res.c }, { r: 3, c: 4 }, 'selection did not move');
+    }],
+    ['hint flags a mistake before suggesting a move', () => {
+      const res = inFrame(sudo, `
+        document.getElementById('resetBtn').click();
+        let er = -1, ec = -1;
+        outer: for(let r = 0; r < 9; r++) for(let c = 0; c < 9; c++)
+          if(givens[r][c] === 0){ er = r; ec = c; break outer; }
+        selectCell(er, ec);
+        setValue(solution[er][ec] % 9 + 1);
+        document.getElementById('hintBtn').click();
+        const bad = !!document.querySelector('.cell.hint-bad');
+        document.getElementById('resetBtn').click();
+        return bad;
+      `);
+      assert(res, 'no hint-bad cell shown for a mistake');
+    }],
+    ['full solve triggers the win banner; reset clears it', () => {
+      const res = inFrame(sudo, `
+        document.getElementById('resetBtn').click();
+        for(let r = 0; r < 9; r++) for(let c = 0; c < 9; c++){
+          if(givens[r][c] === 0){ selectCell(r, c); setValue(solution[r][c]); }
+        }
+        const won = solved && document.getElementById('winBanner').classList.contains('show');
+        document.getElementById('resetBtn').click();
+        return {
+          won,
+          resetCleared: !solved && !document.getElementById('winBanner').classList.contains('show'),
+          timerReset: document.getElementById('timer').textContent === '00:00',
+        };
+      `);
+      assert(res.won, 'win banner not shown on correct solve');
+      assert(res.resetCleared, 'reset did not clear solved state/banner');
+      assert(res.timerReset, 'timer not reset');
+    }],
+  ]);
+
+  // ── UI behavior — word logic ──────────────────────────────────────────
+  await runGroup('UI — word logic', [
+    ['confirm cascades eliminations across row and column', () => {
+      const res = inFrame(word, `
+        document.getElementById('resetBtn').click();
+        setCell('PP', 0, 2, false);
+        return { row: PP[0].join(''), col: [PP[0][2], PP[1][2], PP[2][2], PP[3][2]].join('') };
+      `);
+      assertEq(res.row, '2212', 'row cascade');
+      assertEq(res.col, '1222', 'column cascade');
+    }],
+    ['un-confirm reverts its own cascade', () => {
+      assert(inFrame(word, `
+        setCell('PP', 0, 2, false); // un-confirm the cell from the previous test
+        return PP.flat().every(v => v === 0);
+      `), 'cascade not reverted on un-confirm');
+    }],
+    ['manual eliminations survive an un-confirm', () => {
+      const res = inFrame(word, `
+        setCell('PP', 0, 0, true);   // manual ✕
+        setCell('PP', 0, 2, false);  // confirm
+        setCell('PP', 0, 2, false);  // un-confirm
+        const out = {
+          manualKept: PP[0][0] === 2,
+          cascadeCleared: PP[0][1] === 0 && PP[0][3] === 0,
+        };
+        document.getElementById('resetBtn').click();
+        return out;
+      `);
+      assert(res.manualKept, 'manual elimination was removed');
+      assert(res.cascadeCleared, 'cascaded cells not cleared');
+    }],
+    ['hint flags a mistake before suggesting a move', () => {
+      const res = inFrame(word, `
+        document.getElementById('resetBtn').click();
+        setCell('PP', 0, (solPersonPet[0] + 1) % 4, false); // deliberately wrong confirm
+        document.getElementById('hintBtn').click();
+        const bad = !!document.querySelector('.gcell.hint-bad');
+        document.getElementById('resetBtn').click();
+        return bad;
+      `);
+      assert(res, 'no hint-bad cell shown for a mistake');
+    }],
+    ['full solve triggers the win banner; reset clears everything', () => {
+      const res = inFrame(word, `
+        document.getElementById('resetBtn').click();
+        for(let r = 0; r < 4; r++){
+          setCell('PP', r, solPersonPet[r], false);
+          setCell('PD', r, solPersonDrink[r], false);
+        }
+        for(let r = 0; r < 4; r++) setCell('XD', r, solPetDrink[r], false);
+        const won = solved && document.getElementById('winBanner').classList.contains('show');
+        document.getElementById('resetBtn').click();
+        return {
+          won,
+          resetCleared: !solved && [PP, PD, XD].every(g => g.flat().every(v => v === 0)),
+        };
+      `);
+      assert(res.won, 'win banner not shown on correct solve');
+      assert(res.resetCleared, 'reset did not clear grids/solved state');
+    }],
+  ]);
+
+  // ── UI behavior — nonogram ────────────────────────────────────────────
+  await runGroup('UI — nonogram', [
+    ['fill toggles on and off; mark toggles independently', () => {
+      const res = inFrame(nono, `
+        document.getElementById('resetBtn').click();
+        beginStroke(0, 0, false);
+        const filled = state[0][0] === 1;
+        beginStroke(0, 0, false);
+        const unfilled = state[0][0] === 0;
+        beginStroke(0, 0, true);
+        const marked = state[0][0] === 2;
+        beginStroke(0, 0, true);
+        const unmarked = state[0][0] === 0;
+        document.getElementById('resetBtn').click();
+        return { filled, unfilled, marked, unmarked };
+      `);
+      assert(res.filled, 'fill did not set');
+      assert(res.unfilled, 'fill did not toggle off');
+      assert(res.marked, 'mark did not set');
+      assert(res.unmarked, 'mark did not toggle off');
+    }],
+    ['completing a row auto-marks its empty cells', () => {
+      const res = inFrame(nono, `
+        document.getElementById('resetBtn').click();
+        for(let c = 0; c < COLS; c++){
+          if(solution[0][c] === 1) beginStroke(0, c, false);
+        }
+        const leftover = [];
+        for(let c = 0; c < COLS; c++){
+          if(solution[0][c] === 0 && state[0][c] !== 2) leftover.push(c);
+        }
+        document.getElementById('resetBtn').click();
+        return leftover;
+      `);
+      assertEq(res, [], 'empty cells in completed row not auto-marked');
+    }],
+    ['block borders exclude the outer edges', () => {
+      const res = inFrame(nono, `
+        return {
+          col5: cellRefs[0][4].classList.contains('col-block-border'),
+          lastCol: cellRefs[0][COLS-1].classList.contains('col-block-border'),
+          row5: cellRefs[4][0].classList.contains('row-block-border'),
+          lastRow: cellRefs[ROWS-1][0].classList.contains('row-block-border'),
+        };
+      `);
+      assert(res.col5, 'col 5 missing border');
+      assert(!res.lastCol, 'last col has border');
+      assert(res.row5, 'row 5 missing border');
+      assert(!res.lastRow, 'last row has border');
+    }],
+    ['hint flags a mistake before suggesting a move', () => {
+      const res = inFrame(nono, `
+        document.getElementById('resetBtn').click();
+        let wr = -1, wc = -1;
+        outer: for(let r = 0; r < ROWS; r++) for(let c = 0; c < COLS; c++)
+          if(solution[r][c] === 0){ wr = r; wc = c; break outer; }
+        beginStroke(wr, wc, false); // fill a cell that should be empty
+        document.getElementById('hintBtn').click();
+        const bad = !!document.querySelector('.cell.hint-bad');
+        document.getElementById('resetBtn').click();
+        return bad;
+      `);
+      assert(res, 'no hint-bad cell shown for a mistake');
+    }],
+    ['full solve triggers the win banner; reset clears it', () => {
+      const res = inFrame(nono, `
+        document.getElementById('resetBtn').click();
+        for(let r = 0; r < ROWS; r++) for(let c = 0; c < COLS; c++){
+          if(solution[r][c] === 1) state[r][c] = 1;
+        }
+        render();
+        checkWin();
+        const won = solved && document.getElementById('winBanner').classList.contains('show');
+        document.getElementById('resetBtn').click();
+        return { won, resetCleared: !solved };
+      `);
+      assert(res.won, 'win banner not shown on correct solve');
+      assert(res.resetCleared, 'reset did not clear solved state');
+    }],
+  ]);
+
+  updateSummary(true);
+}
+
+main().catch(e => {
+  summaryEl.textContent = 'Harness error: ' + e.message;
+  summaryEl.classList.add('fail');
+});
+</script>
+</body>
+</html>

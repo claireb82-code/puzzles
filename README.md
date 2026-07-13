@@ -52,6 +52,16 @@ before porting it to the in-browser JS generator — kept for reference, not use
 Open `index.html` for the daily hub, or open any puzzle's `.html` file directly to play that
 type regardless of what's "due" today — everything runs client-side.
 
+## Testing
+
+Open `tests.html` in a browser (needs to be served over HTTP, e.g. `python3 -m http.server`,
+since it loads the puzzle pages in iframes). It runs ~40 tests against the live page code:
+pure-function unit tests, determinism checks (including a guard that generators never touch
+unseeded `Math.random`), generator invariants across dozens of seeds (uniqueness, solvability,
+no blank lines, given counts), rotation math, and UI behavior (win/reset/hint flows, conflict
+marking, cascade undo, keypad state). No build step or test framework — same philosophy as
+the puzzles.
+
 ## Roadmap
 
 - [x] Word logic puzzle
