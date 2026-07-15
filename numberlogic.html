@@ -280,7 +280,7 @@ a.reset-btn{ text-decoration:none; display:inline-block; }
     <h2>Rules</h2>
     <p>Every row, every column, and every 3×3 box must contain the digits 1 through 9, each exactly once.</p>
     <p>Bold cells are given and can't be changed. Click any other cell to select it, then type 1–9 (or use the keypad). Backspace/Delete or the ✕ button clears a cell.</p>
-    <p>A red outline means that digit conflicts with another cell in its row, column, or box. Once a digit has been placed nine times it greys out on the keypad; clearing one of its cells brings it back.</p>
+    <p>A red outline means that digit conflicts with another cell in its row, column, or box. Once a digit has been placed nine times it greys out on the keypad; clearing one of its cells brings it back. If every cell is filled but something's off, you'll get a message even without asking for a hint.</p>
   </div>
 
   <div class="footer-note">
@@ -603,15 +603,25 @@ function render(){
   for(let v = 1; v <= N; v++) keypadRefs[v - 1].classList.toggle('used', counts[v] >= N);
 }
 
+function isGridFull(){
+  for(let r = 0; r < N; r++) for(let c = 0; c < N; c++) if(grid[r][c] === 0) return false;
+  return true;
+}
+
 function checkWin(){
+  let isSolved = true;
   for(let r = 0; r < N; r++){
     for(let c = 0; c < N; c++){
-      if(grid[r][c] !== solution[r][c]) return;
+      if(grid[r][c] !== solution[r][c]) isSolved = false;
     }
   }
-  solved = true;
-  clearInterval(timerInterval);
-  document.getElementById('winBanner').classList.add('show');
+  if(isSolved){
+    solved = true;
+    clearInterval(timerInterval);
+    document.getElementById('winBanner').classList.add('show');
+  } else if(isGridFull()){
+    flashHintMsg('Every cell is filled, but something’s wrong — check for mistakes.', 'bad');
+  }
 }
 
 function startTimer(){

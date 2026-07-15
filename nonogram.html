@@ -288,7 +288,7 @@ a.reset-btn{ text-decoration:none; display:inline-block; }
 <div class="wrap">
   <div class="eyebrow">Daily Logic · Rotation 1 of 3 — Nonogram (hard)</div>
   <h1>Picture Logic</h1>
-  <p class="sub">15×15, a scattering of shapes in one scene — every row and column has something in it. No line solves by simple counting alone; expect to cross-reference rows and columns. Click and drag to fill a run in one stroke, right-click (or Mark mode) to cross out.</p>
+  <p class="sub">15×15, a scattering of shapes in one scene — every row and column has something in it. No line solves by simple counting alone; expect to cross-reference rows and columns. Click and drag to fill a run in one stroke, right-click (or Mark mode) to cross out. If the grid fills up but doesn't match, you'll get a message even without asking for a hint.</p>
 
   <div class="bar">
     <div class="mode-toggle">
@@ -773,16 +773,26 @@ function render(){
   }
 }
 
+function isGridFull(){
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) if(state[r][c] === 0) return false;
+  return true;
+}
+
 function checkWin(){
+  let isSolved = true;
   for(let r=0;r<ROWS;r++){
     for(let c=0;c<COLS;c++){
       const isFilled = state[r][c] === 1 ? 1 : 0;
-      if(isFilled !== solution[r][c]) return;
+      if(isFilled !== solution[r][c]) isSolved = false;
     }
   }
-  solved = true;
-  clearInterval(timerInterval);
-  document.getElementById('winBanner').classList.add('show');
+  if(isSolved){
+    solved = true;
+    clearInterval(timerInterval);
+    document.getElementById('winBanner').classList.add('show');
+  } else if(isGridFull()){
+    flashHintMsg('Every cell is filled, but something’s wrong — check for mistakes.', 'bad');
+  }
 }
 
 function startTimer(){

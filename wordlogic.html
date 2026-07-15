@@ -309,7 +309,7 @@ a.reset-btn{ text-decoration:none; display:inline-block; }
 <div class="wrap">
   <div class="eyebrow">Daily Logic · Rotation 2 of 3 — Word Logic (medium)</div>
   <h1>Desk Neighbors</h1>
-  <p class="sub">Four coworkers at Fenwick &amp; Co. each keep a pet at their desk and have a go-to drink order. Use the clues to work out who has which pet and which drink — click a cell to confirm it (click again to undo, along with the ✕s it added), right-click or use Eliminate mode to cross cells out yourself.</p>
+  <p class="sub">Four coworkers at Fenwick &amp; Co. each keep a pet at their desk and have a go-to drink order. Use the clues to work out who has which pet and which drink — click a cell to confirm it (click again to undo, along with the ✕s it added), right-click or use Eliminate mode to cross cells out yourself. If every cell ends up decided but it's still wrong, you'll get a message.</p>
 
   <div class="bar">
     <div class="mode-toggle">
@@ -722,17 +722,26 @@ function render(){
   });
 }
 
+function isAllGridsFull(){
+  return [PP, PD, XD].every(g => g.flat().every(v => v !== 0));
+}
+
 function checkWin(){
+  let isSolved = true;
   for(let r = 0; r < 4; r++){
-    if(PP[r][solPersonPet[r]] !== 1) return;
-    if(PD[r][solPersonDrink[r]] !== 1) return;
+    if(PP[r][solPersonPet[r]] !== 1) isSolved = false;
+    if(PD[r][solPersonDrink[r]] !== 1) isSolved = false;
   }
   for(let r = 0; r < 4; r++){
-    if(XD[r][solPetDrink[r]] !== 1) return;
+    if(XD[r][solPetDrink[r]] !== 1) isSolved = false;
   }
-  solved = true;
-  clearInterval(timerInterval);
-  document.getElementById('winBanner').classList.add('show');
+  if(isSolved){
+    solved = true;
+    clearInterval(timerInterval);
+    document.getElementById('winBanner').classList.add('show');
+  } else if(isAllGridsFull()){
+    flashHintMsg('Every cell is filled, but something’s wrong — check for mistakes.', 'bad');
+  }
 }
 
 function startTimer(){

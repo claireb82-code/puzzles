@@ -40,6 +40,9 @@ Day-of-epoch mod 3 (UTC), so it cycles continuously:
    live row/column/box conflict highlighting and peer highlighting, keypad digits grey out
    once fully placed, live hint/mistake button.
 
+All three also flag it automatically — no need to hit Hint — when every cell has something in
+it but it doesn't match the solution ("Every cell is filled, but something's wrong").
+
 ## How the generation is verified
 
 Each file seeds a small deterministic PRNG (`xmur3` + `mulberry32`) from a puzzle-type salt
@@ -71,7 +74,7 @@ type regardless of what's "due" today — everything runs client-side.
 ## Testing
 
 Open `tests.html` in a browser (needs to be served over HTTP, e.g. `python3 -m http.server`,
-since it loads the puzzle pages in iframes — it also runs on the live site). It runs 49 tests
+since it loads the puzzle pages in iframes — it also runs on the live site). It runs 52 tests
 against the live page code: pure-function unit tests, determinism checks (including a guard
 that generators never touch unseeded `Math.random`), generator invariants across dozens of
 seeds (uniqueness, solvability, no blank lines, given counts), rotation math, UI behavior

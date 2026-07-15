@@ -451,6 +451,35 @@ async function main(){
       `);
       assert(res, 'no hint-bad cell shown for a mistake');
     }],
+    ['full-but-wrong grid shows a mistake message, not the win banner', () => {
+      const res = inFrame(sudo, `
+        document.getElementById('resetBtn').click();
+        const empties = [];
+        for(let r = 0; r < 9; r++) for(let c = 0; c < 9; c++) if(givens[r][c] === 0) empties.push([r, c]);
+        const a = empties[0];
+        const b = empties.find(([r, c]) => solution[r][c] !== solution[a[0]][a[1]]);
+        const swapVal = { a: solution[a[0]][a[1]], b: solution[b[0]][b[1]] };
+        for(const [r, c] of empties){
+          let v = solution[r][c];
+          if(r === a[0] && c === a[1]) v = swapVal.b;
+          if(r === b[0] && c === b[1]) v = swapVal.a;
+          selectCell(r, c); setValue(v);
+        }
+        const el = document.getElementById('hintMsg');
+        const out = {
+          isFull: isGridFull(),
+          notSolved: !solved,
+          msgShown: el.classList.contains('show') && el.classList.contains('bad'),
+          bannerHidden: !document.getElementById('winBanner').classList.contains('show'),
+        };
+        document.getElementById('resetBtn').click();
+        return out;
+      `);
+      assert(res.isFull, 'test setup did not actually fill the grid');
+      assert(res.notSolved, 'swap coincidentally produced a valid solution — flaky test setup');
+      assert(res.msgShown, 'no full-but-wrong message shown');
+      assert(res.bannerHidden, 'win banner shown for an incorrect grid');
+    }],
     ['full solve triggers the win banner; reset clears it', () => {
       const res = inFrame(sudo, `
         document.getElementById('resetBtn').click();
@@ -513,6 +542,29 @@ async function main(){
         return bad;
       `);
       assert(res, 'no hint-bad cell shown for a mistake');
+    }],
+    ['full-but-wrong grids show a mistake message, not the win banner', () => {
+      const res = inFrame(word, `
+        document.getElementById('resetBtn').click();
+        const wrongPet = (solPersonPet[0] + 1) % 4;
+        setCell('PP', 0, wrongPet, false); // wrong confirm, cascades eliminations
+        for(let r = 1; r < 4; r++) setCell('PP', r, solPersonPet[r], false);
+        for(let r = 0; r < 4; r++) setCell('PD', r, solPersonDrink[r], false);
+        for(let r = 0; r < 4; r++) setCell('XD', r, solPetDrink[r], false);
+        const el = document.getElementById('hintMsg');
+        const out = {
+          isFull: isAllGridsFull(),
+          notSolved: !solved,
+          msgShown: el.classList.contains('show') && el.classList.contains('bad'),
+          bannerHidden: !document.getElementById('winBanner').classList.contains('show'),
+        };
+        document.getElementById('resetBtn').click();
+        return out;
+      `);
+      assert(res.isFull, 'test setup did not actually fill every grid');
+      assert(res.notSolved, 'grid was unexpectedly solved');
+      assert(res.msgShown, 'no full-but-wrong message shown');
+      assert(res.bannerHidden, 'win banner shown for an incorrect grid');
     }],
     ['full solve triggers the win banner; reset clears everything', () => {
       const res = inFrame(word, `
@@ -625,6 +677,36 @@ async function main(){
         return bad;
       `);
       assert(res, 'no hint-bad cell shown for a mistake');
+    }],
+    ['full-but-wrong grid shows a mistake message, not the win banner', () => {
+      const res = inFrame(nono, `
+        document.getElementById('resetBtn').click();
+        let flipR = -1, flipC = -1;
+        outer: for(let r = 0; r < ROWS; r++) for(let c = 0; c < COLS; c++)
+          if(solution[r][c] === 1){ flipR = r; flipC = c; break outer; }
+        for(let r = 0; r < ROWS; r++){
+          for(let c = 0; c < COLS; c++){
+            let shouldFill = solution[r][c] === 1;
+            if(r === flipR && c === flipC) shouldFill = !shouldFill; // deliberately wrong
+            state[r][c] = shouldFill ? 1 : 2; // never leave a cell empty
+          }
+        }
+        render();
+        checkWin();
+        const el = document.getElementById('hintMsg');
+        const out = {
+          isFull: isGridFull(),
+          notSolved: !solved,
+          msgShown: el.classList.contains('show') && el.classList.contains('bad'),
+          bannerHidden: !document.getElementById('winBanner').classList.contains('show'),
+        };
+        document.getElementById('resetBtn').click();
+        return out;
+      `);
+      assert(res.isFull, 'test setup did not actually fill the grid');
+      assert(res.notSolved, 'grid was unexpectedly solved');
+      assert(res.msgShown, 'no full-but-wrong message shown');
+      assert(res.bannerHidden, 'win banner shown for an incorrect grid');
     }],
     ['full solve triggers the win banner; reset clears it', () => {
       const res = inFrame(nono, `
