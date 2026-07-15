@@ -22,7 +22,8 @@ Day-of-epoch mod 3 (UTC), so it cycles continuously:
 
 1. **Nonogram** (`nonogram.html`) — "Picture Logic". 15×15 grid-fill, several shape clusters
    scattered across the grid, drag-to-fill, live hint/mistake button, auto-marks a line once
-   it's fully solved. Every row and column has at least one filled cell.
+   it's fully solved (and retracts those marks if you undo a fill — your own ✕s are never
+   touched). Every row and column has at least one filled cell.
 2. **Word logic** (`wordlogic.html`) — "Desk Neighbors". 4 people × pet × drink, staircase
    elimination grid with the clue list alongside it (confirm/eliminate cells, right-click to
    quick-eliminate; un-confirming a cell also undoes the eliminations it auto-added), live

@@ -514,6 +514,9 @@ for(let c=0;c<COLS;c++){
 
 // state: 0 empty, 1 filled, 2 marked
 const state = Array.from({length:ROWS}, () => Array(COLS).fill(0));
+// true where the ✕ was placed by line auto-marking rather than the user —
+// those retract automatically if the justifying line stops matching
+const autoMarked = Array.from({length:ROWS}, () => Array(COLS).fill(false));
 let mode = 'fill';
 let startTime = null;
 let timerInterval = null;
@@ -539,7 +542,7 @@ function currentElapsed(){
 function saveState(){
   if(!persistEnabled) return;
   try{
-    localStorage.setItem(PERSIST_KEY, JSON.stringify({ state, elapsed: currentElapsed(), solved }));
+    localStorage.setItem(PERSIST_KEY, JSON.stringify({ state, autoMarked, elapsed: currentElapsed(), solved }));
   } catch(e){ /* storage unavailable — keep playing without saving */ }
 }
 
@@ -565,6 +568,9 @@ function restoreState(){
       for(let c = 0; c < COLS; c++){
         const v = saved.state[r][c];
         if(v === 0 || v === 1 || v === 2) state[r][c] = v;
+        if(Array.isArray(saved.autoMarked) && Array.isArray(saved.autoMarked[r])){
+          autoMarked[r][c] = saved.autoMarked[r][c] === true;
+        }
       }
     }
     elapsedOffset = Number.isFinite(saved.elapsed) ? saved.elapsed : 0;
@@ -664,6 +670,7 @@ function beginStroke(r,c,forceMark){
   strokeValue = newValue;
   isDragging = true;
   state[r][c] = newValue;
+  autoMarked[r][c] = false; // direct user action always owns the cell
   render();
   checkWin();
   saveState();
@@ -673,6 +680,7 @@ function applyStroke(r,c){
   if(solved || strokeValue === null) return;
   if(state[r][c] === strokeValue) return;
   state[r][c] = strokeValue;
+  autoMarked[r][c] = false;
   render();
   checkWin();
   saveState();
@@ -693,16 +701,26 @@ function render(){
     colFullMatch[c] = JSON.stringify(filledRuns) === JSON.stringify(colClues[c]);
   }
 
+  // retract auto-marks whose justifying row/column no longer matches;
+  // marks the user placed themselves are never touched
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      if(state[r][c] === 2 && autoMarked[r][c] && !rowFullMatch[r] && !colFullMatch[c]){
+        state[r][c] = 0;
+        autoMarked[r][c] = false;
+      }
+    }
+  }
   for(let r=0;r<ROWS;r++){
     if(!rowFullMatch[r]) continue;
     for(let c=0;c<COLS;c++){
-      if(state[r][c] === 0) state[r][c] = 2;
+      if(state[r][c] === 0){ state[r][c] = 2; autoMarked[r][c] = true; }
     }
   }
   for(let c=0;c<COLS;c++){
     if(!colFullMatch[c]) continue;
     for(let r=0;r<ROWS;r++){
-      if(state[r][c] === 0) state[r][c] = 2;
+      if(state[r][c] === 0){ state[r][c] = 2; autoMarked[r][c] = true; }
     }
   }
 
@@ -843,7 +861,7 @@ function findNextMove(){
 document.getElementById('resetBtn').addEventListener('click', () => {
   clearHintHighlight();
   document.getElementById('hintMsg').classList.remove('show');
-  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) state[r][c] = 0;
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){ state[r][c] = 0; autoMarked[r][c] = false; }
   solved = false;
   startTime = null;
   elapsedOffset = 0;

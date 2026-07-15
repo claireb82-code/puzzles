@@ -562,6 +562,34 @@ async function main(){
       `);
       assertEq(res, [], 'empty cells in completed row not auto-marked');
     }],
+    ['removing a fill retracts the auto-marks it justified; manual marks survive', () => {
+      const res = inFrame(nono, `
+        document.getElementById('resetBtn').click();
+        let R = -1;
+        for(let r = 0; r < ROWS; r++){
+          if(solution[r].reduce((a, b) => a + b, 0) >= 2){ R = r; break; }
+        }
+        let mc = -1;
+        for(let c = 0; c < COLS; c++) if(solution[R][c] === 0){ mc = c; break; }
+        beginStroke(R, mc, true); // manual ✕ before completing the row
+        const fills = [];
+        for(let c = 0; c < COLS; c++) if(solution[R][c] === 1){ beginStroke(R, c, false); fills.push(c); }
+        beginStroke(R, fills[0], false); // un-fill -> row no longer matches
+        const colMatch = c => {
+          const col = []; for(let r = 0; r < ROWS; r++) col.push(state[r][c] === 1 ? 1 : 0);
+          return JSON.stringify(runsOf(col)) === JSON.stringify(colClues[c]);
+        };
+        const stale = [];
+        for(let c = 0; c < COLS; c++){
+          if(c !== mc && solution[R][c] === 0 && state[R][c] === 2 && !colMatch(c)) stale.push(c);
+        }
+        const manualSurvived = state[R][mc] === 2;
+        document.getElementById('resetBtn').click();
+        return { stale, manualSurvived };
+      `);
+      assertEq(res.stale, [], 'stale auto-marks left after removing a fill');
+      assert(res.manualSurvived, 'manual mark was retracted with the auto-marks');
+    }],
     ['block borders exclude the outer edges', () => {
       const res = inFrame(nono, `
         return {
@@ -647,37 +675,48 @@ async function main(){
       assert(res.reverted, 'cascade undo broken after reload (autoEliminated map lost)');
       assert(!localStorage.getItem('dailylogic-wordlogic-TEST'), 'reset did not clear the save');
     }],
-    ['nonogram: fills and marks survive a reload', async () => {
+    ['nonogram: fills, marks, and auto-mark retraction survive a reload', async () => {
       localStorage.removeItem('dailylogic-nonogram-TEST');
       const f1 = await loadFrame('nonogram.html', 'persisttest=1');
-      // fill a correct cell in a row needing >1 fill; mark a cell in another row/col
+      // fill a whole row (auto-marks its empties); mark a cell in another row/col
       const picked = inFrame(f1, `
-        let fr = -1, fc = -1;
-        outer: for(let r = 0; r < ROWS; r++){
-          if(solution[r].reduce((a, b) => a + b, 0) < 2) continue;
-          for(let c = 0; c < COLS; c++) if(solution[r][c] === 1){ fr = r; fc = c; break outer; }
+        let R = -1;
+        for(let r = 0; r < ROWS; r++){
+          if(solution[r].reduce((a, b) => a + b, 0) >= 2){ R = r; break; }
         }
+        const fills = [];
+        for(let c = 0; c < COLS; c++) if(solution[R][c] === 1){ beginStroke(R, c, false); fills.push(c); }
         let mr = -1, mc = -1;
-        outer2: for(let r = 0; r < ROWS; r++){
-          if(r === fr) continue;
+        outer: for(let r = 0; r < ROWS; r++){
+          if(r === R) continue;
           for(let c = 0; c < COLS; c++)
-            if(c !== fc && solution[r][c] === 0){ mr = r; mc = c; break outer2; }
+            if(!fills.includes(c) && solution[r][c] === 0){ mr = r; mc = c; break outer; }
         }
-        beginStroke(fr, fc, false);
         beginStroke(mr, mc, true);
-        return { fr, fc, mr, mc };
+        return { R, f0: fills[0], mr, mc };
       `);
       const f2 = await loadFrame('nonogram.html', 'persisttest=1');
       const res = inFrame(f2, `
-        const out = {
-          fillRestored: state[${picked.fr}][${picked.fc}] === 1,
-          markRestored: state[${picked.mr}][${picked.mc}] === 2,
+        const R = ${picked.R};
+        const fillRestored = state[R][${picked.f0}] === 1;
+        const markRestored = state[${picked.mr}][${picked.mc}] === 2;
+        // un-fill after the reload: restored auto-marks must still retract
+        beginStroke(R, ${picked.f0}, false);
+        const colMatch = c => {
+          const col = []; for(let r = 0; r < ROWS; r++) col.push(state[r][c] === 1 ? 1 : 0);
+          return JSON.stringify(runsOf(col)) === JSON.stringify(colClues[c]);
         };
+        const stale = [];
+        for(let c = 0; c < COLS; c++){
+          if(solution[R][c] === 0 && state[R][c] === 2 && !colMatch(c) &&
+             !(R === ${picked.mr} && c === ${picked.mc})) stale.push(c);
+        }
         document.getElementById('resetBtn').click();
-        return out;
+        return { fillRestored, markRestored, stale };
       `);
       assert(res.fillRestored, 'fill not restored');
       assert(res.markRestored, 'mark not restored');
+      assertEq(res.stale, [], 'auto-marks did not retract after reload (autoMarked flags lost)');
       assert(!localStorage.getItem('dailylogic-nonogram-TEST'), 'reset did not clear the save');
     }],
     ['?nosave frames never write to localStorage', () => {
