@@ -119,6 +119,7 @@ h1{
   transition:border-color .15s, color .15s;
 }
 .reset-btn:hover{ border-color:var(--amber); color:var(--amber); }
+a.reset-btn{ text-decoration:none; display:inline-block; }
 
 .play-area{
   display:flex;
@@ -316,6 +317,7 @@ h1{
       <button id="modeEliminate">✕ Eliminate</button>
     </div>
     <div class="right-controls">
+      <a class="reset-btn" href="index.html">⌂ Home</a>
       <span>Time <span id="timer">00:00</span></span>
       <button class="reset-btn" id="hintBtn">Hint</button>
       <button class="reset-btn" id="resetBtn">Reset</button>
@@ -372,6 +374,16 @@ function mulberry32(a){
 }
 function makeRng(seedStr){ return mulberry32(xmur3(seedStr)()); }
 function todayISO(){ return new Date().toISOString().slice(0, 10); }
+// ?date=YYYY-MM-DD replays that day's puzzle (archive); future/invalid -> today
+function puzzleDateISO(){
+  const p = new URLSearchParams(location.search).get('date');
+  if(p && /^\d{4}-\d{2}-\d{2}$/.test(p) && !isNaN(Date.parse(p + 'T00:00:00Z')) && p <= todayISO()) return p;
+  return todayISO();
+}
+const PUZZLE_DATE = puzzleDateISO();
+if(PUZZLE_DATE !== todayISO()){
+  document.querySelector('.eyebrow').textContent += ' · Archive — ' + PUZZLE_DATE;
+}
 function shuffle(rng, arr){
   const a = arr.slice();
   for(let i = a.length - 1; i > 0; i--){
@@ -477,7 +489,7 @@ function generateWordLogic(seedStr){
   };
 }
 
-const { solPersonPet, solPersonDrink, solPetDrink, clues } = generateWordLogic('wordlogic-' + todayISO());
+const { solPersonPet, solPersonDrink, solPetDrink, clues } = generateWordLogic('wordlogic-' + PUZZLE_DATE);
 
 // ── State ────────────────────────────────────────────────────────────────
 // 0 = empty, 1 = confirmed, 2 = eliminated
@@ -494,7 +506,7 @@ let solved = false;
 const _params = new URLSearchParams(location.search);
 const persistEnabled = !_params.has('nosave');
 const PERSIST_PREFIX = 'dailylogic-wordlogic-';
-const PERSIST_KEY = PERSIST_PREFIX + (_params.has('persisttest') ? 'TEST' : todayISO());
+const PERSIST_KEY = PERSIST_PREFIX + (_params.has('persisttest') ? 'TEST' : PUZZLE_DATE);
 let elapsedOffset = 0; // seconds carried over from a restored session
 
 function updateTimerText(totalSeconds){
@@ -525,9 +537,13 @@ function restoreState(){
   if(!persistEnabled) return;
   try{
     if(!_params.has('persisttest')){
+      // keep recent days so archive progress survives; drop old + test keys
+      const purgeBefore = new Date(Date.now() - 35 * 86400000).toISOString().slice(0, 10);
       for(let i = localStorage.length - 1; i >= 0; i--){
         const k = localStorage.key(i);
-        if(k && k.startsWith(PERSIST_PREFIX) && k !== PERSIST_KEY) localStorage.removeItem(k);
+        if(!k || !k.startsWith(PERSIST_PREFIX) || k === PERSIST_KEY) continue;
+        const datePart = k.slice(PERSIST_PREFIX.length);
+        if(datePart === 'TEST' || datePart < purgeBefore) localStorage.removeItem(k);
       }
     }
     const raw = localStorage.getItem(PERSIST_KEY);

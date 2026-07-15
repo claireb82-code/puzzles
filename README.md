@@ -13,8 +13,16 @@ puzzle for today generates itself in the page.
 ## Start here
 
 Open [`index.html`](index.html) (or the live link above) — it works out which puzzle type is
-up today and links to it, plus lists all three so you can jump to any of them regardless of
-the rotation.
+up today and links to it, lists all three so you can jump to any of them regardless of the
+rotation, and shows the past two weeks' puzzles so you can play any you missed. Every puzzle
+page has a ⌂ Home button back to the hub.
+
+## Archive
+
+Because puzzles are generated deterministically from their date, any past day's puzzle can be
+replayed exactly: append `?date=YYYY-MM-DD` to a puzzle URL (the hub's "Past two weeks" list
+does this for you). Future or malformed dates fall back to today. Archive plays get their own
+progress save, and the page is labelled with the archive date.
 
 ## Rotation
 
@@ -63,7 +71,7 @@ type regardless of what's "due" today — everything runs client-side.
 ## Testing
 
 Open `tests.html` in a browser (needs to be served over HTTP, e.g. `python3 -m http.server`,
-since it loads the puzzle pages in iframes — it also runs on the live site). It runs 43 tests
+since it loads the puzzle pages in iframes — it also runs on the live site). It runs 49 tests
 against the live page code: pure-function unit tests, determinism checks (including a guard
 that generators never touch unseeded `Math.random`), generator invariants across dozens of
 seeds (uniqueness, solvability, no blank lines, given counts), rotation math, UI behavior
@@ -74,9 +82,10 @@ test run never touches your real daily progress.
 
 ## Progress saving
 
-Each puzzle saves its state to `localStorage` on every move (keyed by puzzle type + date),
-so a reload or accidental tab close within the same day picks up exactly where you left off,
-including the timer. Reset clears the save; old days' saves are purged automatically.
+Each puzzle saves its state to `localStorage` on every move (keyed by puzzle type + the date
+being played, so archive games have their own saves too). A reload or accidental tab close
+picks up exactly where you left off, including the timer. Reset clears the save; saves older
+than ~35 days are purged automatically.
 
 ## Roadmap
 
@@ -86,3 +95,5 @@ including the timer. Reset clears the save; old days' saves are purged automatic
 - [x] Day-rotation hub page (`index.html`)
 - [x] In-browser test harness (`tests.html`)
 - [x] localStorage persistence (state + timer survive same-day reloads)
+- [x] Home button on every puzzle page
+- [x] Archive: replay any past day's puzzle via `?date=` + hub list of the past two weeks

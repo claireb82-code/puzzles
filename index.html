@@ -174,6 +174,35 @@ h1{
   line-height:1.5;
 }
 
+.archive{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.archive a{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:10px 16px;
+  text-decoration:none;
+  color:inherit;
+  font-size:13px;
+  transition:border-color .15s;
+}
+.archive a:hover{ border-color:var(--teal); }
+.archive .adate{ font-family:'IBM Plex Mono', monospace; color:var(--ink); }
+.archive .atype{
+  font-family:'IBM Plex Mono', monospace;
+  font-size:11px;
+  color:var(--ink-muted);
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+}
+
 .footer-note{
   margin-top:36px;
   padding-top:18px;
@@ -200,6 +229,9 @@ h1{
 
   <div class="section-label">All puzzles</div>
   <div class="grid3" id="cardGrid"></div>
+
+  <div class="section-label">Past two weeks</div>
+  <div class="archive" id="archiveList"></div>
 
   <div class="footer-note">
     <b>How it works:</b> today's date seeds a deterministic generator for whichever puzzle type is up in the rotation, so the puzzle is different every time that type comes around — no two Mondays are the same nonogram. Open any file directly to play a puzzle out of rotation any time.
@@ -258,6 +290,21 @@ ROTATION.forEach((p, i) => {
   `;
   grid.appendChild(a);
 });
+
+// Past two weeks — each day links to its rotation puzzle, regenerated from
+// that date's seed via the ?date= param.
+const archiveList = document.getElementById('archiveList');
+const todayMs = Date.parse(todayISO() + 'T00:00:00Z');
+for(let i = 1; i <= 14; i++){
+  const iso = new Date(todayMs - i * 86400000).toISOString().slice(0, 10);
+  const p = ROTATION[((daysSinceEpoch(iso) % 3) + 3) % 3];
+  const a = document.createElement('a');
+  a.href = `${p.file}?date=${iso}`;
+  const label = new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB',
+    { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+  a.innerHTML = `<span class="adate">${label}</span><span class="atype">${p.type} · ${p.name}</span>`;
+  archiveList.appendChild(a);
+}
 </script>
 </body>
 </html>
