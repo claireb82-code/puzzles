@@ -318,25 +318,31 @@ async function main(){
     }],
   ]);
 
-  await runGroup(`Invariants — word logic (${wordSeeds} seeds)`, [
-    ['clue set forces exactly 1 of 576 assignments', () => {
-      const ALL = word.permutations([0,1,2,3]);
-      const assignments = [];
-      for(const pp of ALL) for(const pd of ALL) assignments.push({ permP: pp, permD: pd });
+  await runGroup(`Invariants — word logic (${wordSeeds} seeds, sizes 4-6)`, [
+    ['clue set forces exactly 1 assignment', () => {
       for(let i = 0; i < wordSeeds; i++){
         const p = word.generateWordLogic('inv-' + i);
-        const cands = word.buildCandidates(p.solPersonPet, p.solPersonDrink);
+        const cands = word.buildCandidates(p.theme, p.n, p.solPersonPet, p.solPersonDrink);
         const active = cands.filter(c => p.clues.includes(c.text));
         assertEq(active.length, p.clues.length, `seed ${i}: clue text not found in candidate pool`);
-        assertEq(word.countMatching(active, assignments), 1, `seed ${i} not unique`);
+        const { allAssignments } = word.buildAssignments(p.n);
+        let cnt = 0;
+        for(const a of allAssignments){
+          if(active.every(cl => cl.test(a))) cnt++;
+          if(cnt > 1) break;
+        }
+        assertEq(cnt, 1, `seed ${i} (n=${p.n}, theme=${p.theme.title}) not unique`);
       }
     }],
     ['no direct giveaway clues', () => {
       for(let i = 0; i < wordSeeds; i++){
         const p = word.generateWordLogic('inv-' + i);
+        const names = p.theme.people.join('|');
+        const hasPattern = new RegExp(`^(${names}) has the `);
+        const verbPattern = new RegExp(`^(${names}) ${p.theme.itemCVerbThird} `);
         for(const clue of p.clues){
-          assert(!/^(Ava|Ben|Cleo|Dev) has the /.test(clue), `seed ${i}: direct pet clue "${clue}"`);
-          assert(!/^(Ava|Ben|Cleo|Dev) drinks /.test(clue), `seed ${i}: direct drink clue "${clue}"`);
+          assert(!hasPattern.test(clue), `seed ${i}: direct itemB clue "${clue}"`);
+          assert(!verbPattern.test(clue), `seed ${i}: direct itemC clue "${clue}"`);
         }
       }
     }],
@@ -345,6 +351,26 @@ async function main(){
         const p = word.generateWordLogic('inv-' + i);
         assertEq(new Set(p.clues).size, p.clues.length, `seed ${i} has duplicate clue`);
       }
+    }],
+    ['every item list is duplicate-free and sized to n', () => {
+      for(let i = 0; i < wordSeeds; i++){
+        const p = word.generateWordLogic('inv-' + i);
+        for(const list of [p.theme.people, p.theme.itemBNames, p.theme.itemCNames]){
+          assertEq(list.length, p.n, `seed ${i}: list length != n`);
+          assertEq(new Set(list).size, p.n, `seed ${i}: duplicate names in a category`);
+        }
+      }
+    }],
+    ['size and theme selection both cover their full range', () => {
+      const sizes = new Set(), titles = new Set();
+      for(let i = 0; i < 40; i++){
+        const p = word.generateWordLogic('coverage-' + i);
+        sizes.add(p.n);
+        titles.add(p.theme.title);
+      }
+      assertEq([...sizes].sort(), [4, 5, 6], `only saw sizes: ${[...sizes]}`);
+      const themeCount = inFrame(word, 'return THEMES.length;');
+      assertEq(titles.size, themeCount, `only saw themes: ${[...titles].join(', ')}`);
     }],
   ]);
 
@@ -502,18 +528,33 @@ async function main(){
 
   // ── UI behavior — word logic ──────────────────────────────────────────
   await runGroup('UI — word logic', [
+    ['grid dimensions match N, and today\'s puzzle is one of the four themes', () => {
+      const res = inFrame(word, `
+        return { N, PPsize: PP.length, PProwSize: PP[0].length, title: theme.title };
+      `);
+      assert(res.N >= 4 && res.N <= 6, `N out of range: ${res.N}`);
+      assertEq(res.PPsize, res.N, 'PP row count');
+      assertEq(res.PProwSize, res.N, 'PP col count');
+      assert(res.title, 'theme title missing');
+    }],
     ['confirm cascades eliminations across row and column', () => {
       const res = inFrame(word, `
         document.getElementById('resetBtn').click();
-        setCell('PP', 0, 2, false);
-        return { row: PP[0].join(''), col: [PP[0][2], PP[1][2], PP[2][2], PP[3][2]].join('') };
+        setCell('PP', 0, 1, false);
+        return {
+          row: PP[0].join(''),
+          col: Array.from({length: N}, (_, r) => PP[r][1]).join(''),
+          N,
+        };
       `);
-      assertEq(res.row, '2212', 'row cascade');
-      assertEq(res.col, '1222', 'column cascade');
+      const expectedRow = Array.from({length: res.N}, (_, c) => c === 1 ? '1' : '2').join('');
+      const expectedCol = Array.from({length: res.N}, (_, r) => r === 0 ? '1' : '2').join('');
+      assertEq(res.row, expectedRow, 'row cascade');
+      assertEq(res.col, expectedCol, 'column cascade');
     }],
     ['un-confirm reverts its own cascade', () => {
       assert(inFrame(word, `
-        setCell('PP', 0, 2, false); // un-confirm the cell from the previous test
+        setCell('PP', 0, 1, false); // un-confirm the cell from the previous test
         return PP.flat().every(v => v === 0);
       `), 'cascade not reverted on un-confirm');
     }],
@@ -535,7 +576,7 @@ async function main(){
     ['hint flags a mistake before suggesting a move', () => {
       const res = inFrame(word, `
         document.getElementById('resetBtn').click();
-        setCell('PP', 0, (solPersonPet[0] + 1) % 4, false); // deliberately wrong confirm
+        setCell('PP', 0, (solPersonPet[0] + 1) % N, false); // deliberately wrong confirm
         document.getElementById('hintBtn').click();
         const bad = !!document.querySelector('.gcell.hint-bad');
         document.getElementById('resetBtn').click();
@@ -546,11 +587,11 @@ async function main(){
     ['full-but-wrong grids show a mistake message, not the win banner', () => {
       const res = inFrame(word, `
         document.getElementById('resetBtn').click();
-        const wrongPet = (solPersonPet[0] + 1) % 4;
+        const wrongPet = (solPersonPet[0] + 1) % N;
         setCell('PP', 0, wrongPet, false); // wrong confirm, cascades eliminations
-        for(let r = 1; r < 4; r++) setCell('PP', r, solPersonPet[r], false);
-        for(let r = 0; r < 4; r++) setCell('PD', r, solPersonDrink[r], false);
-        for(let r = 0; r < 4; r++) setCell('XD', r, solPetDrink[r], false);
+        for(let r = 1; r < N; r++) setCell('PP', r, solPersonPet[r], false);
+        for(let r = 0; r < N; r++) setCell('PD', r, solPersonDrink[r], false);
+        for(let r = 0; r < N; r++) setCell('XD', r, solPetDrink[r], false);
         const el = document.getElementById('hintMsg');
         const out = {
           isFull: isAllGridsFull(),
@@ -569,11 +610,11 @@ async function main(){
     ['full solve triggers the win banner; reset clears everything', () => {
       const res = inFrame(word, `
         document.getElementById('resetBtn').click();
-        for(let r = 0; r < 4; r++){
+        for(let r = 0; r < N; r++){
           setCell('PP', r, solPersonPet[r], false);
           setCell('PD', r, solPersonDrink[r], false);
         }
-        for(let r = 0; r < 4; r++) setCell('XD', r, solPetDrink[r], false);
+        for(let r = 0; r < N; r++) setCell('XD', r, solPetDrink[r], false);
         const won = solved && document.getElementById('winBanner').classList.contains('show');
         document.getElementById('resetBtn').click();
         return {

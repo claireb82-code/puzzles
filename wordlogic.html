@@ -139,8 +139,6 @@ a.reset-btn{ text-decoration:none; display:inline-block; }
 
 .lgrid{
   display:grid;
-  grid-template-columns: 100px repeat(8, 44px);
-  grid-template-rows: 78px repeat(8, 40px);
   width:max-content;
 }
 
@@ -307,9 +305,9 @@ a.reset-btn{ text-decoration:none; display:inline-block; }
 </head>
 <body>
 <div class="wrap">
-  <div class="eyebrow">Daily Logic · Rotation 2 of 3 — Word Logic (medium)</div>
-  <h1>Desk Neighbors</h1>
-  <p class="sub">Four coworkers at Fenwick &amp; Co. each keep a pet at their desk and have a go-to drink order. Use the clues to work out who has which pet and which drink — click a cell to confirm it (click again to undo, along with the ✕s it added), right-click or use Eliminate mode to cross cells out yourself. If every cell ends up decided but it's still wrong, you'll get a message.</p>
+  <div class="eyebrow" id="eyebrow">Daily Logic · Rotation 2 of 3 — Word Logic</div>
+  <h1 id="pageTitle">Word Logic</h1>
+  <p class="sub" id="pageSub">Loading today's puzzle…</p>
 
   <div class="bar">
     <div class="mode-toggle">
@@ -381,9 +379,6 @@ function puzzleDateISO(){
   return todayISO();
 }
 const PUZZLE_DATE = puzzleDateISO();
-if(PUZZLE_DATE !== todayISO()){
-  document.querySelector('.eyebrow').textContent += ' · Archive — ' + PUZZLE_DATE;
-}
 function shuffle(rng, arr){
   const a = arr.slice();
   for(let i = a.length - 1; i > 0; i--){
@@ -403,99 +398,187 @@ function permutations(arr){
 }
 
 // ── Word logic generation ───────────────────────────────────────────────
-const people = ['Ava','Ben','Cleo','Dev'];
-const pets   = ['Bird','Cat','Dog','Fish'];
-const drinks = ['Cocoa','Coffee','Juice','Tea'];
+// Four scenario "skins" sharing the same underlying structure (people x
+// itemB x itemC, with itemB "owned" and itemC an action/preference), so the
+// puzzle reads differently day to day even when the mechanics are the same.
+// Each list has 6 entries so any size 4/5/6 can pick a random subset.
+const THEMES = [
+  {
+    title: 'Desk Neighbors',
+    people: ['Ava','Ben','Cleo','Dev','Farah','Gus'],
+    itemBSingular: 'pet',
+    itemBOwner: 'owner',
+    itemBNames: ['Bird','Cat','Dog','Fish','Rabbit','Turtle'],
+    itemCVerbBase: 'drink',
+    itemCVerbThird: 'drinks',
+    itemCNames: ['Cocoa','Coffee','Juice','Tea','Water','Soda'],
+    flavor: n => `${n} coworkers at Fenwick & Co. each keep a pet at their desk and have a go-to drink order.`,
+  },
+  {
+    title: 'Band Practice',
+    people: ['Priya','Sam','Talia','Omar','Nadia','Leo'],
+    itemBSingular: 'instrument',
+    itemBOwner: 'player',
+    itemBNames: ['Guitar','Bass','Drums','Keys','Violin','Sax'],
+    itemCVerbBase: 'play',
+    itemCVerbThird: 'plays',
+    itemCNames: ['Rock','Jazz','Punk','Folk','Blues','Pop'],
+    flavor: n => `${n} bandmates are rehearsing — each plays one instrument and specializes in one genre.`,
+  },
+  {
+    title: 'Road Trip',
+    people: ['Marco','Ines','Devon','Yuki','Sana','Theo'],
+    itemBSingular: 'car',
+    itemBOwner: 'driver',
+    itemBNames: ['SUV','Sedan','Van','Truck','Coupe','Wagon'],
+    itemCVerbBase: 'pack',
+    itemCVerbThird: 'packs',
+    itemCNames: ['Chips','Pretzels','Grapes','Cookies','Nuts','Fruit'],
+    flavor: n => `${n} friends are road-tripping, each in their own car with their own snack stash.`,
+  },
+  {
+    title: 'Coffee Shop Regulars',
+    people: ['Wren','Kai','Rosa','Milo','Ada','Jude'],
+    itemBSingular: 'mug',
+    itemBOwner: 'owner',
+    itemBNames: ['Crimson','Cobalt','Sage','Onyx','Ivory','Amber'],
+    itemCVerbBase: 'order',
+    itemCVerbThird: 'orders',
+    itemCNames: ['Croissant','Muffin','Scone','Bagel','Donut','Biscotti'],
+    flavor: n => `${n} regulars at the corner café each have their own mug and go-to pastry order.`,
+  },
+];
+const SIZE_OPTIONS = [4, 5, 6];
+const DIFFICULTY_LABEL = { 4: 'medium', 5: 'hard', 6: 'expert' };
 
-function petDrinkOf(permP, permD){
-  const pd = [null, null, null, null];
-  for(let p = 0; p < 4; p++) pd[permP[p]] = permD[p];
+function petDrinkOf(permP, permD, n){
+  const pd = Array(n).fill(null);
+  for(let p = 0; p < n; p++) pd[permP[p]] = permD[p];
   return pd;
+}
+
+// Every permutation of size n, paired up, each tagged with its own
+// itemB<->itemC mapping precomputed once — cross-clue predicates then just
+// look this up instead of recomputing it per (assignment, clue) pair, which
+// matters once n=6 pushes the assignment count past half a million.
+function buildAssignments(n){
+  const ALL_PERMS = permutations(Array.from({length: n}, (_, i) => i));
+  const allAssignments = [];
+  for(const pp of ALL_PERMS){
+    for(const pd of ALL_PERMS){
+      allAssignments.push({ permP: pp, permD: pd, petDrink: petDrinkOf(pp, pd, n) });
+    }
+  }
+  return { ALL_PERMS, allAssignments };
 }
 
 // Candidate clue pool deliberately excludes direct "X has the Y" facts —
 // those turn the puzzle into a lookup instead of a deduction.
-function buildCandidates(permP, permD){
+function buildCandidates(theme, n, permP, permD){
+  const { people, itemBSingular, itemBOwner, itemBNames, itemCVerbBase, itemCVerbThird, itemCNames } = theme;
   const cands = [];
-  for(let p = 0; p < 4; p++){
-    for(let w = 0; w < 4; w++){
+  for(let p = 0; p < n; p++){
+    for(let w = 0; w < n; w++){
       if(w !== permP[p]) cands.push({
-        text: `${people[p]}'s pet is not the ${pets[w]}.`,
+        text: `${people[p]}'s ${itemBSingular} is not the ${itemBNames[w]}.`,
         test: a => a.permP[p] !== w,
       });
     }
   }
-  for(let p = 0; p < 4; p++){
-    for(let w = 0; w < 4; w++){
+  for(let p = 0; p < n; p++){
+    for(let w = 0; w < n; w++){
       if(w !== permD[p]) cands.push({
-        text: `${people[p]} does not drink ${drinks[w]}.`,
+        text: `${people[p]} does not ${itemCVerbBase} ${itemCNames[w]}.`,
         test: a => a.permD[p] !== w,
       });
     }
   }
-  const petDrink = petDrinkOf(permP, permD);
-  for(let petI = 0; petI < 4; petI++){
-    const target = petDrink[petI];
+  const petDrink = petDrinkOf(permP, permD, n);
+  for(let i = 0; i < n; i++){
+    const target = petDrink[i];
     cands.push({
-      text: `The ${pets[petI]} owner drinks ${drinks[target]}.`,
-      test: a => petDrinkOf(a.permP, a.permD)[petI] === target,
+      text: `The ${itemBNames[i]} ${itemBOwner} ${itemCVerbThird} ${itemCNames[target]}.`,
+      test: a => a.petDrink[i] === target,
     });
   }
-  for(let petI = 0; petI < 4; petI++){
-    for(let w = 0; w < 4; w++){
-      if(w !== petDrink[petI]) cands.push({
-        text: `The ${pets[petI]} owner does not drink ${drinks[w]}.`,
-        test: a => petDrinkOf(a.permP, a.permD)[petI] !== w,
+  for(let i = 0; i < n; i++){
+    for(let w = 0; w < n; w++){
+      if(w !== petDrink[i]) cands.push({
+        text: `The ${itemBNames[i]} ${itemBOwner} does not ${itemCVerbBase} ${itemCNames[w]}.`,
+        test: a => a.petDrink[i] !== w,
       });
     }
   }
   return cands;
 }
 
-function countMatching(clueList, allAssignments){
-  let cnt = 0;
-  for(const a of allAssignments){
-    if(clueList.every(cl => cl.test(a))){
-      cnt++;
-      if(cnt > 1) return cnt;
+// Greedily adds shuffled candidates, keeping only ones that actually shrink
+// the surviving-assignment set, stopping the moment exactly one remains.
+// The full candidate pool is guaranteed to isolate one assignment (each
+// person already has n-1 negatives covering every wrong option, which alone
+// pins their answer), so this always terminates with survivors.length===1 —
+// it's just discovering a smaller sufficient subset. Cheap even at n=6
+// because the working set shrinks fast instead of being rescanned whole.
+function reduceToUniqueClues(rng, candidates, allAssignments){
+  let survivors = allAssignments;
+  const kept = [];
+  for(const cand of shuffle(rng, candidates)){
+    if(survivors.length === 1) break;
+    const filtered = survivors.filter(a => cand.test(a));
+    if(filtered.length < survivors.length){
+      survivors = filtered;
+      kept.push(cand);
     }
   }
-  return cnt;
+  return kept;
 }
 
 function generateWordLogic(seedStr){
   const rng = makeRng(seedStr);
-  const ALL_PERMS = permutations([0, 1, 2, 3]);
-  const allAssignments = [];
-  for(const pp of ALL_PERMS) for(const pd of ALL_PERMS) allAssignments.push({ permP: pp, permD: pd });
+  const theme = THEMES[Math.floor(rng() * THEMES.length)];
+  const n = SIZE_OPTIONS[Math.floor(rng() * SIZE_OPTIONS.length)];
 
+  const people = shuffle(rng, theme.people).slice(0, n);
+  const itemBNames = shuffle(rng, theme.itemBNames).slice(0, n);
+  const itemCNames = shuffle(rng, theme.itemCNames).slice(0, n);
+  const themeInstance = { ...theme, people, itemBNames, itemCNames };
+
+  const { ALL_PERMS, allAssignments } = buildAssignments(n);
   const permP = ALL_PERMS[Math.floor(rng() * ALL_PERMS.length)];
   const permD = ALL_PERMS[Math.floor(rng() * ALL_PERMS.length)];
 
-  const kept = shuffle(rng, buildCandidates(permP, permD));
-  const removedFlags = kept.map(() => false);
-  const order = shuffle(rng, kept.map((_, i) => i));
-  for(const idx of order){
-    const trial = kept.filter((_, i) => i !== idx && !removedFlags[i]);
-    if(countMatching(trial, allAssignments) === 1) removedFlags[idx] = true;
-  }
-  const finalClues = kept.filter((_, i) => !removedFlags[i]);
+  const candidates = buildCandidates(themeInstance, n, permP, permD);
+  const kept = reduceToUniqueClues(rng, candidates, allAssignments);
 
   return {
+    n,
+    theme: themeInstance,
     solPersonPet: permP,
     solPersonDrink: permD,
-    solPetDrink: petDrinkOf(permP, permD),
-    clues: shuffle(rng, finalClues.map(c => c.text)),
+    solPetDrink: petDrinkOf(permP, permD, n),
+    clues: shuffle(rng, kept.map(c => c.text)),
   };
 }
 
-const { solPersonPet, solPersonDrink, solPetDrink, clues } = generateWordLogic('wordlogic-' + PUZZLE_DATE);
+const wl = generateWordLogic('wordlogic-' + PUZZLE_DATE);
+const N = wl.n;
+const theme = wl.theme;
+const { people, itemBNames, itemCNames } = theme;
+const { solPersonPet, solPersonDrink, solPetDrink, clues } = wl;
+
+document.title = `Daily Logic — Word Logic — ${theme.title}`;
+let eyebrowText = `Daily Logic · Rotation 2 of 3 — Word Logic (${DIFFICULTY_LABEL[N]})`;
+if(PUZZLE_DATE !== todayISO()) eyebrowText += ' · Archive — ' + PUZZLE_DATE;
+document.getElementById('eyebrow').textContent = eyebrowText;
+document.getElementById('pageTitle').textContent = theme.title;
+document.getElementById('pageSub').textContent =
+  `${theme.flavor(N)} Click a cell to confirm it (click again to undo, along with the ✕s it added), right-click or use Eliminate mode to cross cells out yourself. If every cell ends up decided but it's still wrong, you'll get a message.`;
 
 // ── State ────────────────────────────────────────────────────────────────
 // 0 = empty, 1 = confirmed, 2 = eliminated
-const PP = Array.from({length:4}, () => Array(4).fill(0)); // people x pets
-const PD = Array.from({length:4}, () => Array(4).fill(0)); // people x drinks
-const XD = Array.from({length:4}, () => Array(4).fill(0)); // pets x drinks
+const PP = Array.from({length:N}, () => Array(N).fill(0)); // people x itemB
+const PD = Array.from({length:N}, () => Array(N).fill(0)); // people x itemC
+const XD = Array.from({length:N}, () => Array(N).fill(0)); // itemB x itemC
 
 let mode = 'confirm';
 let startTime = null;
@@ -550,10 +633,10 @@ function restoreState(){
     if(!raw) return;
     const saved = JSON.parse(raw);
     const pairs = [[PP, saved.PP], [PD, saved.PD], [XD, saved.XD]];
-    if(pairs.some(([, s]) => !Array.isArray(s) || s.length !== 4)) return;
+    if(pairs.some(([, s]) => !Array.isArray(s) || s.length !== N)) return;
     for(const [target, source] of pairs){
-      for(let r = 0; r < 4; r++){
-        for(let c = 0; c < 4; c++){
+      for(let r = 0; r < N; r++){
+        for(let c = 0; c < N; c++){
           const v = source[r][c];
           if(v === 0 || v === 1 || v === 2) target[r][c] = v;
         }
@@ -575,6 +658,8 @@ const cellRefs = {}; // key "PP-r-c" etc -> element
 
 // ── Build grid ───────────────────────────────────────────────────────────
 const lgrid = document.getElementById('lgrid');
+lgrid.style.gridTemplateColumns = `100px repeat(${2 * N}, 44px)`;
+lgrid.style.gridTemplateRows = `78px repeat(${2 * N}, 40px)`;
 
 function place(el, col, row){
   el.style.gridColumn = col;
@@ -587,23 +672,23 @@ corner.className = 'cornercell';
 place(corner, 1, 1);
 lgrid.appendChild(corner);
 
-// column headers: pets (cols 2-5), drinks (cols 6-9)
-pets.forEach((name, i) => {
+// column headers: itemB (cols 2..N+1), itemC (cols N+2..2N+1)
+itemBNames.forEach((name, i) => {
   const h = document.createElement('div');
   h.className = 'colhead';
   h.innerHTML = `<span>${name}</span>`;
   place(h, i + 2, 1);
   lgrid.appendChild(h);
 });
-drinks.forEach((name, i) => {
+itemCNames.forEach((name, i) => {
   const h = document.createElement('div');
   h.className = 'colhead';
   h.innerHTML = `<span>${name}</span>`;
-  place(h, i + 6, 1);
+  place(h, i + N + 2, 1);
   lgrid.appendChild(h);
 });
 
-// people rows (rows 2-5)
+// people rows (rows 2..N+1)
 people.forEach((name, r) => {
   const label = document.createElement('div');
   label.className = 'rowlabel people' + (r === 0 ? ' block-start' : '');
@@ -611,7 +696,7 @@ people.forEach((name, r) => {
   place(label, 1, r + 2);
   lgrid.appendChild(label);
 
-  pets.forEach((_, c) => {
+  itemBNames.forEach((_, c) => {
     const cell = document.createElement('div');
     cell.className = 'gcell' + (r === 0 ? ' block-start' : '') + (c === 0 ? ' col-block-start' : '');
     place(cell, c + 2, r + 2);
@@ -620,36 +705,36 @@ people.forEach((name, r) => {
     cellRefs[`PP-${r}-${c}`] = cell;
   });
 
-  drinks.forEach((_, c) => {
+  itemCNames.forEach((_, c) => {
     const cell = document.createElement('div');
     cell.className = 'gcell' + (r === 0 ? ' block-start' : '') + (c === 0 ? ' col-block-start' : '');
-    place(cell, c + 6, r + 2);
+    place(cell, c + N + 2, r + 2);
     attachHandlers(cell, 'PD', r, c);
     lgrid.appendChild(cell);
     cellRefs[`PD-${r}-${c}`] = cell;
   });
 });
 
-// pet rows (rows 6-9)
-pets.forEach((name, r) => {
+// itemB rows (rows N+2..2N+1)
+itemBNames.forEach((name, r) => {
   const label = document.createElement('div');
   label.className = 'rowlabel' + (r === 0 ? ' block-start' : '');
   label.textContent = name;
-  place(label, 1, r + 6);
+  place(label, 1, r + N + 2);
   lgrid.appendChild(label);
 
-  // filler block (pets x pets) — not a real comparison
-  pets.forEach((_, c) => {
+  // filler block (itemB x itemB) — not a real comparison
+  itemBNames.forEach((_, c) => {
     const cell = document.createElement('div');
     cell.className = 'gcell filler' + (r === 0 ? ' block-start' : '') + (c === 0 ? ' col-block-start' : '');
-    place(cell, c + 2, r + 6);
+    place(cell, c + 2, r + N + 2);
     lgrid.appendChild(cell);
   });
 
-  drinks.forEach((_, c) => {
+  itemCNames.forEach((_, c) => {
     const cell = document.createElement('div');
     cell.className = 'gcell' + (r === 0 ? ' block-start' : '') + (c === 0 ? ' col-block-start' : '');
-    place(cell, c + 6, r + 6);
+    place(cell, c + N + 2, r + N + 2);
     attachHandlers(cell, 'XD', r, c);
     lgrid.appendChild(cell);
     cellRefs[`XD-${r}-${c}`] = cell;
@@ -688,10 +773,10 @@ function setCell(key, r, c, forceEliminate){
     grid[r][c] = newValue;
     if(newValue === 1){
       const cascaded = [];
-      for(let cc = 0; cc < 4; cc++){
+      for(let cc = 0; cc < N; cc++){
         if(cc !== c && grid[r][cc] === 0){ grid[r][cc] = 2; cascaded.push([r, cc]); }
       }
-      for(let rr = 0; rr < 4; rr++){
+      for(let rr = 0; rr < N; rr++){
         if(rr !== r && grid[rr][c] === 0){ grid[rr][c] = 2; cascaded.push([rr, c]); }
       }
       autoEliminated.set(cellId, cascaded);
@@ -712,8 +797,8 @@ function setCell(key, r, c, forceEliminate){
 function render(){
   ['PP','PD','XD'].forEach(key => {
     const grid = gridFor(key);
-    for(let r = 0; r < 4; r++){
-      for(let c = 0; c < 4; c++){
+    for(let r = 0; r < N; r++){
+      for(let c = 0; c < N; c++){
         const cell = cellRefs[`${key}-${r}-${c}`];
         cell.classList.toggle('confirmed', grid[r][c] === 1);
         cell.classList.toggle('eliminated', grid[r][c] === 2);
@@ -728,11 +813,11 @@ function isAllGridsFull(){
 
 function checkWin(){
   let isSolved = true;
-  for(let r = 0; r < 4; r++){
+  for(let r = 0; r < N; r++){
     if(PP[r][solPersonPet[r]] !== 1) isSolved = false;
     if(PD[r][solPersonDrink[r]] !== 1) isSolved = false;
   }
-  for(let r = 0; r < 4; r++){
+  for(let r = 0; r < N; r++){
     if(XD[r][solPetDrink[r]] !== 1) isSolved = false;
   }
   if(isSolved){
@@ -794,8 +879,8 @@ function findMistake(){
     { key: 'XD', grid: XD, sol: solPetDrink },
   ];
   for(const { key, grid, sol } of specs){
-    for(let r = 0; r < 4; r++){
-      for(let c = 0; c < 4; c++){
+    for(let r = 0; r < N; r++){
+      for(let c = 0; c < N; c++){
         const correct = sol[r] === c;
         if(grid[r][c] === 1 && !correct) return { key, r, c, type: 'wrong-confirm' };
         if(grid[r][c] === 2 && correct) return { key, r, c, type: 'wrong-eliminate' };
@@ -812,7 +897,7 @@ function findNextMove(){
     { key: 'XD', grid: XD, sol: solPetDrink },
   ];
   for(const { key, grid, sol } of specs){
-    for(let r = 0; r < 4; r++){
+    for(let r = 0; r < N; r++){
       if(grid[r][sol[r]] !== 1) return { key, r, c: sol[r] };
     }
   }
@@ -844,7 +929,7 @@ document.getElementById('resetBtn').addEventListener('click', () => {
   clearHintHighlight();
   document.getElementById('hintMsg').classList.remove('show');
   [PP, PD, XD].forEach(grid => {
-    for(let r = 0; r < 4; r++) for(let c = 0; c < 4; c++) grid[r][c] = 0;
+    for(let r = 0; r < N; r++) for(let c = 0; c < N; c++) grid[r][c] = 0;
   });
   autoEliminated.clear();
   solved = false;

@@ -32,10 +32,12 @@ Day-of-epoch mod 3 (UTC), so it cycles continuously:
    scattered across the grid, drag-to-fill, live hint/mistake button, auto-marks a line once
    it's fully solved (and retracts those marks if you undo a fill — your own ✕s are never
    touched). Every row and column has at least one filled cell.
-2. **Word logic** (`wordlogic.html`) — "Desk Neighbors". 4 people × pet × drink, staircase
-   elimination grid with the clue list alongside it (confirm/eliminate cells, right-click to
-   quick-eliminate; un-confirming a cell also undoes the eliminations it auto-added), live
-   hint/mistake button.
+2. **Word logic** (`wordlogic.html`) — one of four scenarios (Desk Neighbors, Band Practice,
+   Road Trip, Coffee Shop Regulars), each with its own names/items/phrasing, at a size of
+   4, 5, or 6 chosen per puzzle — bigger grids mean more items, more clues, and a "hard" or
+   "expert" difficulty label instead of "medium". Staircase elimination grid with the clue
+   list alongside it (confirm/eliminate cells, right-click to quick-eliminate; un-confirming
+   a cell also undoes the eliminations it auto-added), live hint/mistake button.
 3. **Sudoku** (`numberlogic.html`) — "Nine". Classic 9×9, 32 givens, keyboard/keypad entry,
    live row/column/box conflict highlighting and peer highlighting, keypad digits grey out
    once fully placed, live hint/mistake button.
@@ -52,9 +54,13 @@ of that, each generator proves its own output is soundly unique before showing i
 - **Sudoku** — builds a solved grid via the standard band/stack-shuffle method, then carves
   givens out one at a time, keeping a removal only if a backtracking solver (capped at 2
   solutions) still finds exactly one.
-- **Word logic** — builds a pool of true statements about a randomized person/pet/drink
-  assignment (deliberately excluding direct "X has Y" giveaways), then greedily drops clues
-  while brute-force checking all 576 possible assignments still yield exactly one match.
+- **Word logic** — picks one of 4 themes and a size n (4, 5, or 6), builds a pool of true
+  statements about a randomized assignment (deliberately excluding direct "X has Y"
+  giveaways), then greedily keeps only candidates that shrink the surviving-assignment set,
+  stopping the moment exactly one remains. (An earlier remove-and-reverify version rescanned
+  every one of n!² assignments per candidate — fine at n=4's 576, far too slow once n=6 pushes
+  that past 500,000; the greedy version stays under ~120ms even there since the working set
+  shrinks fast instead of being rescanned from scratch.)
 - **Nonogram** — stamps 3–5 small overlapping rectangles into each of 5 diagonally-spread
   bands to form a grid, then runs the clues through a line-propagation constraint solver to
   a fixpoint. If every cell ends up determined, that assignment was logically forced at every
@@ -74,7 +80,7 @@ type regardless of what's "due" today — everything runs client-side.
 ## Testing
 
 Open `tests.html` in a browser (needs to be served over HTTP, e.g. `python3 -m http.server`,
-since it loads the puzzle pages in iframes — it also runs on the live site). It runs 52 tests
+since it loads the puzzle pages in iframes — it also runs on the live site). It runs 55 tests
 against the live page code: pure-function unit tests, determinism checks (including a guard
 that generators never touch unseeded `Math.random`), generator invariants across dozens of
 seeds (uniqueness, solvability, no blank lines, given counts), rotation math, UI behavior
@@ -100,3 +106,5 @@ than ~35 days are purged automatically.
 - [x] localStorage persistence (state + timer survive same-day reloads)
 - [x] Home button on every puzzle page
 - [x] Archive: replay any past day's puzzle via `?date=` + hub list of the past two weeks
+- [x] Full-but-wrong detection (message fires without needing to click Hint)
+- [x] Word logic: 4 rotating themes + variable size (4/5/6) for more variety and difficulty
