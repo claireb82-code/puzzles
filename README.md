@@ -80,7 +80,7 @@ type regardless of what's "due" today — everything runs client-side.
 ## Testing
 
 Open `tests.html` in a browser (needs to be served over HTTP, e.g. `python3 -m http.server`,
-since it loads the puzzle pages in iframes — it also runs on the live site). It runs 55 tests
+since it loads the puzzle pages in iframes — it also runs on the live site). It runs 57 tests
 against the live page code: pure-function unit tests, determinism checks (including a guard
 that generators never touch unseeded `Math.random`), generator invariants across dozens of
 seeds (uniqueness, solvability, no blank lines, given counts), rotation math, UI behavior
@@ -93,8 +93,13 @@ test run never touches your real daily progress.
 
 Each puzzle saves its state to `localStorage` on every move (keyed by puzzle type + the date
 being played, so archive games have their own saves too). A reload or accidental tab close
-picks up exactly where you left off, including the timer. Reset clears the save; saves older
-than ~35 days are purged automatically.
+picks up exactly where you left off, including the timer — reopening an already-solved puzzle
+shows the win banner immediately. Reset clears the save; saves older than ~35 days are purged
+automatically.
+
+The hub (`index.html`) reads these saves too, so you can tell what's done without opening
+anything: a "✓ Solved" tag on the featured card and the "All puzzles" grid, and a checkmark
+next to any completed day in the "Past two weeks" archive list.
 
 ## Roadmap
 
@@ -108,3 +113,4 @@ than ~35 days are purged automatically.
 - [x] Archive: replay any past day's puzzle via `?date=` + hub list of the past two weeks
 - [x] Full-but-wrong detection (message fires without needing to click Hint)
 - [x] Word logic: 4 rotating themes + variable size (4/5/6) for more variety and difficulty
+- [x] "Solved" indicators on the hub (featured card, puzzle grid, archive list)

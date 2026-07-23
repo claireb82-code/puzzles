@@ -154,13 +154,28 @@ h1{
   color:var(--amber);
   text-transform:uppercase;
 }
+.type-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:8px;
+  margin-bottom:8px;
+}
+.card.today .type-row{ padding-top:18px; }
 .card .type{
   font-family:'IBM Plex Mono', monospace;
   font-size:11px;
   color:var(--teal);
   text-transform:uppercase;
   letter-spacing:0.08em;
-  margin-bottom:8px;
+}
+.solved-tag{
+  font-family:'IBM Plex Mono', monospace;
+  font-size:10px;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  color:var(--teal);
+  white-space:nowrap;
 }
 .card .cname{
   font-family:'Space Grotesk', sans-serif;
@@ -202,6 +217,11 @@ h1{
   text-transform:uppercase;
   letter-spacing:0.08em;
 }
+.archive .solved-check{
+  color:var(--teal);
+  margin-left:8px;
+  font-weight:700;
+}
 
 .footer-note{
   margin-top:36px;
@@ -224,7 +244,7 @@ h1{
     <div class="badge" id="featuredBadge">Today's puzzle</div>
     <div class="name" id="featuredName">—</div>
     <div class="desc" id="featuredDesc">—</div>
-    <div class="cta">Play today's puzzle →</div>
+    <div class="cta" id="featuredCta">Play today's puzzle →</div>
   </a>
 
   <div class="section-label">All puzzles</div>
@@ -242,18 +262,21 @@ h1{
 const ROTATION = [
   {
     file: 'nonogram.html',
+    storageKey: 'nonogram',
     type: 'Nonogram',
     name: 'Picture Logic',
     desc: '15×15 grid-fill puzzle. Clues on the edges tell you how many cells to fill in each row and column.',
   },
   {
     file: 'wordlogic.html',
+    storageKey: 'wordlogic',
     type: 'Word Logic',
     name: 'Word Logic',
     desc: 'A logic-grid deduction puzzle on a staircase elimination grid — the scenario, size (4-6), and difficulty are different each time.',
   },
   {
     file: 'numberlogic.html',
+    storageKey: 'sudoku',
     type: 'Sudoku',
     name: 'Nine',
     desc: 'Classic 9×9 sudoku. Fill every row, column, and box with 1–9, no repeats.',
@@ -269,22 +292,41 @@ function todaysIndex(){
   return ((n % ROTATION.length) + ROTATION.length) % ROTATION.length;
 }
 
+// Each puzzle page saves { ..., solved } to this key on every move, so we can
+// tell — without opening the puzzle — whether a given day's is already done.
+function isPuzzleSolved(storageKey, dateISO){
+  try{
+    const raw = localStorage.getItem(`dailylogic-${storageKey}-${dateISO}`);
+    if(!raw) return false;
+    const saved = JSON.parse(raw);
+    return !!(saved && saved.solved === true);
+  } catch(e){ return false; }
+}
+
 const idx = todaysIndex();
 const today = ROTATION[idx];
+const todaySolved = isPuzzleSolved(today.storageKey, todayISO());
 
 document.getElementById('featuredLink').href = today.file;
-document.getElementById('featuredBadge').textContent = `Today's puzzle · ${today.type}`;
+document.getElementById('featuredBadge').textContent =
+  `Today's puzzle · ${today.type}` + (todaySolved ? ' · ✓ Solved' : '');
 document.getElementById('featuredName').textContent = today.name;
 document.getElementById('featuredDesc').textContent = today.desc;
+document.getElementById('featuredCta').textContent =
+  todaySolved ? 'Review today’s puzzle →' : 'Play today’s puzzle →';
 
 const grid = document.getElementById('cardGrid');
 ROTATION.forEach((p, i) => {
   const a = document.createElement('a');
+  const solved = isPuzzleSolved(p.storageKey, todayISO());
   a.className = 'card' + (i === idx ? ' today' : '');
   a.href = p.file;
   a.innerHTML = `
     ${i === idx ? '<div class="today-tag">Today</div>' : ''}
-    <div class="type">${p.type}</div>
+    <div class="type-row">
+      <span class="type">${p.type}</span>
+      ${solved ? '<span class="solved-tag">✓ Solved</span>' : ''}
+    </div>
     <div class="cname">${p.name}</div>
     <div class="cdesc">${p.desc}</div>
   `;
@@ -298,11 +340,12 @@ const todayMs = Date.parse(todayISO() + 'T00:00:00Z');
 for(let i = 1; i <= 14; i++){
   const iso = new Date(todayMs - i * 86400000).toISOString().slice(0, 10);
   const p = ROTATION[((daysSinceEpoch(iso) % 3) + 3) % 3];
+  const solved = isPuzzleSolved(p.storageKey, iso);
   const a = document.createElement('a');
   a.href = `${p.file}?date=${iso}`;
   const label = new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB',
     { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
-  a.innerHTML = `<span class="adate">${label}</span><span class="atype">${p.type} · ${p.name}</span>`;
+  a.innerHTML = `<span class="adate">${label}${solved ? ' <span class="solved-check" title="Solved">✓</span>' : ''}</span><span class="atype">${p.type} · ${p.name}</span>`;
   archiveList.appendChild(a);
 }
 </script>

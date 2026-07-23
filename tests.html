@@ -912,6 +912,49 @@ async function main(){
       assert(saved, 'archive move not saved under its date key');
       assert(cleared, 'reset did not clear the archive save');
     }],
+    ['hub shows a solved indicator for a completed puzzle, none for others', async () => {
+      // fabricate one solved save 5 days back (safely inside the 14-day
+      // window regardless of when this suite runs), reload the hub, check
+      // exactly that row got a checkmark, then clean up
+      const targetDate = new Date(Date.now() - 5 * 86400000).toISOString().slice(0, 10);
+      const targetFile = inFrame(index, `
+        const days = Math.floor(new Date('${targetDate}T00:00:00Z').getTime() / 86400000);
+        return ROTATION[((days % 3) + 3) % 3].file;
+      `);
+      const targetType = targetFile.replace('numberlogic.html', 'sudoku').replace('.html', '');
+      const targetKey = `dailylogic-${targetType}-${targetDate}`;
+      localStorage.removeItem(targetKey);
+      localStorage.setItem(targetKey, JSON.stringify({ state: [], elapsed: 12, solved: true }));
+
+      const f = await loadFrame('index.html');
+      const rows = inFrame(f, `
+        return [...document.querySelectorAll('#archiveList a')].map(a => ({
+          href: a.href,
+          checked: !!a.querySelector('.solved-check'),
+        }));
+      `);
+      localStorage.removeItem(targetKey);
+
+      const matchingRow = rows.find(r => r.href.includes(`date=${targetDate}`) && r.href.includes(targetFile));
+      const otherChecked = rows.filter(r => !(r.href.includes(`date=${targetDate}`) && r.href.includes(targetFile)) && r.checked);
+      assert(matchingRow, `no archive row found for ${targetDate} (${targetFile})`);
+      assert(matchingRow.checked, 'solved archive day has no checkmark');
+      assertEq(otherChecked.length, 0, 'an unsolved day was incorrectly marked solved');
+    }],
+    ['unsolved puzzle shows no solved tag or checkmark anywhere on the hub', async () => {
+      // sanity check with a clean slate: nothing should be marked solved
+      const f = await loadFrame('index.html');
+      const res = inFrame(f, `
+        return {
+          featuredHasSolved: document.getElementById('featuredBadge').textContent.includes('Solved'),
+          cardHasSolved: !!document.querySelector('.card .solved-tag'),
+          archiveHasCheck: !!document.querySelector('#archiveList .solved-check'),
+        };
+      `);
+      assert(!res.featuredHasSolved, 'featured badge shows Solved with no save present');
+      assert(!res.cardHasSolved, 'a card shows Solved with no save present');
+      assert(!res.archiveHasCheck, 'an archive row shows a checkmark with no save present');
+    }],
   ]);
 
   updateSummary(true);
